@@ -1,0 +1,30 @@
+[project]
+name = "mjtutor"
+version = "0.1.0"
+description = "Local Mahjong Soul hanchan review tools for a Mortal-backed coaching agent"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp>=2.0,<3",
+]
+
+[project.scripts]
+mjtutor = "mjtutor.cli:main"
+mjtutor-mcp = "mjtutor.mcp_server:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4,<9",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mjtutor"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+pythonpath = ["src"]
+testpaths = ["tests"]

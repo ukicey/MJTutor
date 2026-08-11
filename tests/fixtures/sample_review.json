@@ -1,0 +1,60 @@
+{
+  "engine": "mortal",
+  "player_id": 0,
+  "review": {
+    "total_reviewed": 2,
+    "total_matches": 1,
+    "rating": 0.81,
+    "temperature": 0.1,
+    "model_tag": "mortal-test",
+    "relative_phi_matrix": [],
+    "kyokus": [
+      {
+        "kyoku": 0,
+        "honba": 0,
+        "end_status": [],
+        "relative_scores": [25000, 25000, 25000, 25000],
+        "entries": [
+          {
+            "junme": 5,
+            "tiles_left": 54,
+            "last_actor": 0,
+            "tile": "8m",
+            "state": {
+              "tehai": ["2m", "3m", "4m", "6m", "7m", "8m", "3p", "4p", "5p", "3s", "4s", "5s", "E", "E"],
+              "fuuros": []
+            },
+            "expected": {"type": "dahai", "actor": 0, "pai": "8m", "tsumogiri": false},
+            "actual": {"type": "dahai", "actor": 0, "pai": "E", "tsumogiri": false},
+            "is_equal": false,
+            "details": [
+              {"action": {"type": "dahai", "actor": 0, "pai": "8m", "tsumogiri": false}, "q_value": 0.62, "prob": 0.73},
+              {"action": {"type": "dahai", "actor": 0, "pai": "E", "tsumogiri": false}, "q_value": 0.41, "prob": 0.24},
+              {"action": {"type": "dahai", "actor": 0, "pai": "2m", "tsumogiri": false}, "q_value": 0.18, "prob": 0.03}
+            ],
+            "shanten": 1,
+            "at_furiten": false,
+            "actual_index": 1
+          },
+          {
+            "junme": 8,
+            "tiles_left": 42,
+            "last_actor": 0,
+            "tile": "P",
+            "state": {"tehai": [], "fuuros": []},
+            "expected": {"type": "dahai", "actor": 0, "pai": "P", "tsumogiri": true},
+            "actual": {"type": "dahai", "actor": 0, "pai": "P", "tsumogiri": true},
+            "is_equal": true,
+            "details": [
+              {"action": {"type": "dahai", "actor": 0, "pai": "P", "tsumogiri": true}, "q_value": 0.55, "prob": 0.60},
+              {"action": {"type": "dahai", "actor": 0, "pai": "9s", "tsumogiri": false}, "q_value": 0.49, "prob": 0.40}
+            ],
+            "shanten": 2,
+            "at_furiten": false,
+            "actual_index": 0
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+[mcp_servers.mjtutor]
+command = "uv"
+args = [
+  "--directory",
+  "/Users/tongqi/pythonprojects/MJTutor",
+  "run",
+  "mjtutor-mcp",
+]
+startup_timeout_sec = 60

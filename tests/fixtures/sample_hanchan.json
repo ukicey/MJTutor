@@ -1,0 +1,9 @@
+{
+  "ver": "2.3",
+  "ref": "majsoul-sample-hanchan",
+  "name": ["Player", "A", "B", "C"],
+  "rule": {"disp": "雀魂四人南喰赤"},
+  "log": [
+    [[0, 0, 0]]
+  ]
+}
