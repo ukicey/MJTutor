@@ -1,82 +1,109 @@
 # MJTutor
 
-一个只在本机运行的个人日麻复盘项目：`mjai-reviewer + Mortal` 提供结构化牌谱分析，ChatGPT/Codex 通过 MCP 查询证据，再由项目 Skill 组织成可追问、可积累的教学对话。
+MJTutor 是一个本地运行的日麻复盘教练。Mortal 负责评估牌谱中的动作，Codex 通过 MCP 读取结构化证据，再由项目 Skill 把结果组织成可以追问、能够积累长期画像的教学对话。
 
-## 当前范围
+> 当前状态：个人 MVP。四麻半庄的导入、Mortal Web 报告、决策查询、本地记忆和画像流程已经可用；远程推理仍需人工通过 Turnstile，牌谱屋自动同步尚未实现。
 
-- 雀魂四人段位场牌谱
-- 只支持半庄，即南风局
-- 输入为雀魂牌谱链接或导出的 `tenhou.net/6` 兼容 JSON
-- 牌谱屋（Koromo）是正式的账号标识与段位场牌局目录来源
-- Mortal 负责动作评价；ChatGPT 不在本项目中调用额外 API
-- 牌谱、复盘和个人反馈只保存在本机 SQLite
-- 暂无 GUI、远程服务和商业化部署
+## 功能
 
-代码不会修改 Mortal，也不会假定 Mortal 能解释自己的内部原因。它只保存 Mortal 实际提供的候选动作、Q 值、概率、向听数和局面状态。教练解释必须区分牌谱事实、Mortal 输出、规则推导与教练推测。
+- 支持雀魂四人半庄牌谱链接和 `tenhou.net/6` 兼容导出 JSON。
+- 支持 Mortal Web 远程推理，不需要在本机运行模型。
+- 支持本地 `mjai-reviewer + Mortal`，适合已经准备好模型和权重的用户。
+- 保存 Mortal 候选动作、Q 值、概率、向听数和模型版本。
+- 重放 `mjai_log`，补充决策前的分数、宝牌、牌河、副露、立直状态和可见牌统计。
+- 使用本地 SQLite 保存复盘、客观观察、明确反馈和可纠正的长期画像。
+- 单机单主人；一份安装可以绑定多个雀魂账号，但没有登录和多用户系统。
 
-## 组成
+MJTutor 不会把 Mortal 的动作偏好直接称为错误，也不会声称 Mortal 能解释自己的内部原因。教练输出需要区分牌谱事实、Mortal 输出、规则推导和教练推测。
 
-```text
-牌谱屋账号与雀魂牌谱链接 / 雀魂导出 JSON
-    -> mjai-reviewer --json
-    -> Mortal
-    -> 本地 SQLite
-    -> MJTutor MCP
-    -> ChatGPT/Codex + coach-mahjong-soul Skill
-```
+## 运行方式
 
-我们直接利用 `mjai-reviewer --json` 的结构化结果。它已经包含每个决策的实际动作、Mortal 推荐动作、候选动作、Q 值、概率、向听数和手牌状态，因此第一版不需要修改 Mortal 本体。MJTutor 还会重放报告中的 `mjai_log`，为单个决策补充分数、宝牌、牌河、副露、立直状态以及从目标玩家视角计算的可见与未见枚数。
+当前推荐在 **Codex 桌面端或 Codex CLI 的本地项目任务**中使用。仓库内包含：
 
-决策上下文严格停在实际动作发生前：只统计目标玩家手牌和当时已经公开的牌，不读取对手暗牌或后续事件。`unseen_tile_counts` 表示“玩家未看见的牌”，不代表这些牌确定仍在牌山。
+- `.codex/config.toml`：启动本地 `mjtutor` MCP。
+- `.agents/skills/coach-mahjong-soul/`：复盘与长期记忆工作流。
 
-## 本地主人与牌谱屋账号
+普通 ChatGPT 对话不会自动读取你电脑上的仓库，也不能直接启动本地 MCP。这个项目目前不是远程 ChatGPT App 或托管服务。
 
-每份 MJTutor 安装只服务一个本地主人，不提供用户表、登录、切换用户或按用户隔离画像。这个主人可以绑定一个或多个雀魂账号；每个账号使用“当前昵称 + 牌谱屋 `account_id`”展示。昵称可以重复或变化，因此只用于搜索和显示；首次绑定必须由用户确认牌谱屋搜索结果，系统会保存昵称历史，不会凭同名自动认领账号。
+## 快速开始
 
-雀魂牌谱链接中的 `_a...` 查看者参数可以还原为牌谱屋 `account_id`。当该账号已经确认绑定时，新导入的 Mortal 报告会自动记录账号来源；旧报告也会在绑定账号时回填来源。无论账号是否已绑定，用户主动导入的目标座位都属于本地主人，决策观察和长期画像可以立即使用。无法可靠识别的本地导出只会缺少账号来源，不需要再绑定到某个“玩家”。
+### 1. 安装环境
 
-```bash
-uv run mjtutor account-bind '昵称' 1234567
-uv run mjtutor profile
-```
+需要：
 
-牌谱屋是第三方且不是实时数据源。目前项目已完成身份绑定和牌谱链接识别；按账号增量同步金、玉、王座段位场牌局的 Provider 是下一层工作。同步不会登录或侵入雀魂客户端，也不会把整份牌局目录交给 LLM。
+- Python 3.11 或更高版本。
+- [`uv`](https://docs.astral.sh/uv/getting-started/installation/)。
+- Codex 桌面端或 Codex CLI。
 
-## 长期记忆
-
-长期记忆以本地 SQLite 为准，不依赖 ChatGPT 会话历史，分成三层：
-
-1. **客观观察**：每个已绑定复盘的决策、实际与 Mortal 动作、排名、Q 差、局面索引及 `model_tag`。它们不是自动判定的缺点。
-2. **暂定画像**：跨多场重复后由教练提出的、带置信度和适用场景的假设，同时保存支持案例与反例。
-3. **确认画像**：用户明确确认或纠正的风格、弱点、优势、目标、疑问、已理解内容和教学偏好。
-
-画像条目支持确认、纠正、否认和遗忘。否认项默认不会进入后续教练上下文；遗忘会从本地数据库删除条目及其证据。`get_local_profile` 默认只返回紧凑聚合，ChatGPT 需要证明某个判断时才通过 `review_id + decision_id` 获取完整局面，以控制 token 使用。
-
-## 开发环境
-
-项目使用 `uv`，Python 版本要求为 3.11 或更高：
+克隆并安装依赖：
 
 ```bash
-cd /Users/tongqi/pythonprojects/MJTutor
-UV_CACHE_DIR=/private/tmp/mjtutor-uv-cache uv sync
-UV_CACHE_DIR=/private/tmp/mjtutor-uv-cache uv run pytest
+git clone https://github.com/ukicey/MJTutor.git
+cd MJTutor
+uv sync
+uv run pytest
 ```
 
-检查当前外部引擎配置：
+测试通过后，检查运行状态：
 
 ```bash
 uv run mjtutor setup
 ```
 
-## 接入 Mortal
+### 2. 在 Codex 中打开项目
 
-项目刻意把 Mortal 当成外部程序。需要另外准备：
+在 Codex 中把克隆得到的 `MJTutor` 目录作为本地项目打开，然后新建一个任务。首次使用项目配置时，Codex 可能要求你信任仓库或允许启动 MCP。
+
+确认工具可用后，可以直接发送：
+
+```text
+用 $coach-mahjong-soul 复盘这份雀魂四麻半庄牌谱：
+https://game.maj-soul.com/1/?paipu=...
+```
+
+也可以先问：
+
+```text
+检查 MJTutor 是否已经配置好，不要开始牌局教学。
+```
+
+### 3. 使用 Mortal Web
+
+这是默认推荐路线，不需要下载 Mortal 权重，也几乎不占本地推理算力。
+
+1. 把雀魂 `paipu` 链接发给 Codex。
+2. MJTutor 调用 `prepare_mortal_web_review`，生成预填的 Mortal Web 页面。
+3. 在浏览器中人工完成 Cloudflare Turnstile 并提交。
+4. 把生成的 `/report/*.json` 或 `/report/*.html` 地址发回 Codex。
+5. MJTutor 调用 `import_mortal_web_report`，保存结构化报告。
+6. 让教练先选最多三个最值得讨论的决策，再按需展开。
+
+MJTutor 不会绕过、破解或外包 Turnstile。Mortal Web 也没有可依赖的公开提交 API，因此这一步不能无人值守。
+
+## 绑定本地账号
+
+绑定账号是可选项。没有绑定账号也可以导入牌谱、建立观察和使用长期画像。
+
+```bash
+uv run mjtutor account-bind '雀魂昵称' 12345678
+uv run mjtutor profile
+```
+
+这里的数字是雀魂稳定的 `account_id`。昵称可能重复或变化，只用于显示和记录历史。
+
+牌谱链接中的 `_a...` 是经过编码的账号参数，表示该链接指定的账号或查看视角；它不一定就是被复盘玩家。MJTutor 只有在它与已经确认的本地账号一致时，才会把它作为账号来源，不会凭昵称或链接自动认领身份。
+
+牌谱屋（Koromo）目前主要覆盖金、玉、王座段位场，数据可能延迟或不完整。未被牌谱屋收录不代表雀魂账号没有 `account_id`。
+
+## 本地 Mortal
+
+已经准备好 Mortal 的用户可以使用完全本地的分析路线。需要另外安装：
 
 1. [`Equim-chan/Mortal`](https://github.com/Equim-chan/Mortal) 及可用权重。
 2. [`Equim-chan/mjai-reviewer`](https://github.com/Equim-chan/mjai-reviewer) 可执行文件。
-3. Mortal 的启动文件和 `config.toml`。
+3. Mortal 启动文件和 `config.toml`。
 
-根据 `.env.example` 设置三个环境变量：
+复制 `.env.example` 中的变量并按本机路径设置：
 
 ```bash
 export MJTUTOR_REVIEWER_BIN=/absolute/path/to/mjai-reviewer
@@ -84,11 +111,7 @@ export MJTUTOR_MORTAL_EXE=/absolute/path/to/Mortal/mortal/mortal
 export MJTUTOR_MORTAL_CONFIG=/absolute/path/to/Mortal/mortal/config.toml
 ```
 
-Mortal 源码使用 AGPL-3.0-or-later，`mjai-reviewer` 使用 Apache-2.0。本仓库目前只通过进程调用它们，不复制源码或模型权重。
-
-## 导出与分析牌谱
-
-`mjai-reviewer` 的[雀魂本地牌谱指南](https://github.com/Equim-chan/mjai-reviewer/blob/master/mjsoul.adoc)说明了如何在雀魂牌谱页面导出兼容 JSON。导出文件后先验证：
+先检查雀魂导出文件：
 
 ```bash
 uv run mjtutor inspect /path/to/majsoul-log.json
@@ -100,56 +123,86 @@ uv run mjtutor inspect /path/to/majsoul-log.json
 uv run mjtutor review /path/to/majsoul-log.json --seat 0
 uv run mjtutor list
 uv run mjtutor summary REVIEW_ID
+uv run mjtutor decision REVIEW_ID DECISION_ID
 ```
 
-牌谱格式本身不总能可靠区分段位场和友人场。当前版本验证四麻与半庄；“段位场”先作为导入来源约束，后续拿到真实雀魂样本后再补充严格识别。
+雀魂本地导出方法参见 `mjai-reviewer` 的[雀魂牌谱指南](https://github.com/Equim-chan/mjai-reviewer/blob/master/mjsoul.adoc)。
 
-## 远程 Mortal Web
+## 长期记忆
 
-Mortal 在线站可以直接接收雀魂分享链接，并在远端完成推理。它没有公开提交 API，而且使用 Cloudflare Turnstile，因此 MJTutor 不会模拟、破解或外包验证码。当前提供安全的半自动流程：
+长期记忆以本地 SQLite 为准，不依赖某一次聊天记录，分为三层：
 
-1. 调用 MCP 工具 `prepare_mortal_web_review`，传入雀魂 `paipu` 链接。
-2. MJTutor 返回已填入牌谱链接的 Mortal Web 地址。
-3. 在页面确认模型和局筛选，人工完成一次 Turnstile 并提交。
-4. 将生成的 `/report/*.html` 或 `/report/*.json` 地址交给 `import_mortal_web_report`。
-5. 结构化结果进入和本地 Mortal 完全相同的查询、解释和个人档案流程。
+1. **客观观察**：实际动作、Mortal 推荐、候选排名、Q 差、局面索引和 `model_tag`。它们不是自动判定的缺点。
+2. **暂定画像**：跨多场重复后提出的、带置信度和适用场景的假设，同时保存支持案例和反例。
+3. **确认画像**：用户明确确认或纠正的风格、弱点、优势、目标、疑问、已理解内容和教学偏好。
 
-直接在项目中输入牌谱链接：
+画像条目支持确认、纠正、否认和遗忘。否认项默认不会进入后续教练上下文；遗忘会删除本地条目及其证据。
+
+## 数据与隐私
+
+默认数据库位于：
+
+```text
+data/coach.sqlite3
+```
+
+`data/`、`.env`、`models/`、虚拟环境和缓存均被 Git 忽略。MJTutor 不会主动上传牌谱、数据库或画像；只有用户明确选择的 Mortal Web 分析会把相应牌谱链接交给第三方站点。
+
+数据库保存：
+
+- 本地账号、当前昵称和昵称历史。
+- Mortal 原始报告 JSON。
+- 复盘及决策前公开桌面状态。
+- 可分页检索的客观决策观察。
+- 暂定与确认画像、支持证据和反例。
+- 用户明确确认的错误、偏好、疑问和已理解事项。
+
+## 常用命令
 
 ```bash
+uv run mjtutor --help
+uv run mjtutor setup
+uv run mjtutor profile
+uv run mjtutor list
 uv run mjtutor web-prepare 'https://game.maj-soul.com/1/?paipu=...'
-uv run mjtutor web-import 'https://mjai.ekyu.moe/report/....html' 'https://game.maj-soul.com/1/?paipu=...'
+uv run mjtutor web-import 'https://mjai.ekyu.moe/report/example.json' 'https://game.maj-soul.com/1/?paipu=...'
 ```
 
-这条路线几乎不占本地推理算力，但不能无人值守。真正的全自动远程 Provider 需要一个明确允许程序调用的推理 API；目前没有找到可依赖的免费公共端点。
+## 故障排查
 
-## MCP 与 Skill
+### Codex 中没有出现 MJTutor 工具
 
-项目级 MCP 配置位于 `.codex/config.toml`，新打开该项目的 Codex 任务后会启动 `mjtutor`。Skill 位于：
+1. 在仓库目录运行 `uv sync`。
+2. 确认 `uv run mjtutor setup` 可以执行。
+3. 关闭旧任务，并从 MJTutor 项目中新建任务，让项目级 MCP 重新加载。
+4. 如果 Codex 找不到 `uv`，把 `.codex/config.toml` 中的 `command` 改为本机 `uv` 的绝对路径。
 
-```text
-.agents/skills/coach-mahjong-soul/
+### Mortal Web 无法自动提交
+
+这是预期行为。页面要求人工完成 Turnstile，MJTutor 只负责生成提交地址和导入最终报告。
+
+### 本地 Mortal 超时
+
+可以提高 `MJTUTOR_TIMEOUT_SECONDS`。完整半庄在 CPU 上可能耗时较长，模型权重也不会随本仓库下载。
+
+## 当前限制
+
+- 只支持雀魂四人半庄；牌谱格式不总能可靠区分段位场与友人场。
+- 牌谱屋自动检索和增量同步尚未实现。
+- Mortal Web 需要人工验证。
+- 不提供 GUI、自动雀魂登录、实时对局辅助或远程托管服务。
+- Mortal 和 `mjai-reviewer` 是外部项目，本仓库不包含源码或模型权重。
+
+## 开发
+
+```bash
+uv sync
+uv run pytest
+uv run python -m compileall -q src tests
 ```
 
-典型对话：
+Mortal 使用 AGPL-3.0-or-later，`mjai-reviewer` 使用 Apache-2.0。本仓库只通过进程调用它们。
 
-```text
-用 $coach-mahjong-soul 复盘这份雀魂半庄牌谱，先找出三个最值得讨论的决策。
-```
+## 许可证
 
-首次运行 MCP 前仍需完成 `uv sync`。当前 OpenAI Docs 网页和官方文档 MCP 端点在本机均返回 403；本项目配置依据本机 Codex 随附的 MCP 集成说明和 MCP Python SDK 2.0 接口编写。
-
-## 数据位置
-
-默认数据库为 `data/coach.sqlite3`，已排除在 Git 之外。它保存：
-
-- 本地主人的牌谱屋账号 ID、当前昵称与昵称历史
-- 复盘报告原始 JSON
-- 从 `mjai_log` 按需重建的决策时点公开桌面状态
-- 牌谱哈希与本地路径
-- 目标玩家座位
-- 可分页检索的客观决策观察
-- 暂定与确认画像、支持证据和反例
-- 教练明确记录的错误、风格偏好、疑问和已理解事项
-
-不会上传牌谱，也不会把少量标注直接宣称为稳定打法特征。
+本仓库暂未添加开源许可证。公开可见不等于授予复制、修改或再发布许可；正式发布前应选择合适的许可证。

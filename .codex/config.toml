@@ -2,7 +2,7 @@
 command = "uv"
 args = [
   "--directory",
-  "/Users/tongqi/pythonprojects/MJTutor",
+  ".",
   "run",
   "mjtutor-mcp",
 ]
