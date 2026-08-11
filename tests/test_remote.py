@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import pytest
 
 from mjtutor.errors import ReviewerError
@@ -9,8 +7,7 @@ from mjtutor.remote import (
     validate_majsoul_url,
 )
 
-FIXTURES = Path(__file__).parent / "fixtures"
-PAIPU_URL = (FIXTURES / "canonical_paipu_url.txt").read_text(encoding="utf-8").strip()
+PAIPU_URL = "https://game.maj-soul.com/1/?paipu=synthetic-test-hanchan"
 
 
 def test_prepares_prefilled_mortal_web_review() -> None:
