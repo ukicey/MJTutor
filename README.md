@@ -6,33 +6,32 @@
   <a href="README.ja.md">日本語</a>
 </p>
 
-MJTutor 是一个面向 Codex 的本地日麻复盘插件。Mortal 负责评估牌谱动作，插件通过 MCP 保存结构化证据，Codex Skill 再把牌谱事实、Mortal 判断、规则推导和教练推测组织成可以追问的教学对话。
+MJTutor 是一个面向 Codex 的本地日麻复盘插件，支持雀魂四人半庄。它结合
+Mortal 的动作评估、牌谱中的公开信息和可纠正的长期画像，把一次性的牌谱分析
+变成可以持续追问的教学对话。
 
-> 当前状态：个人 MVP。雀魂四麻半庄、牌谱屋本地目录、Mortal Web 报告导入、决策查询、本地记忆和可纠正画像已经可用。Mortal Web 仍需用户亲自完成 Turnstile。
+MJTutor 会区分牌谱事实、Mortal 输出、规则推导和教练推测，也不会把所有与
+Mortal 不同的选择直接判定为错误。
 
 [查看更新日志](CHANGELOG.md)
 
 ## 功能
 
-- 直接在 Codex 对话中接收雀魂四人半庄牌谱链接。
-- 使用 Mortal Web 远程推理，不在本机下载或运行 Mortal 权重。
-- 保存候选动作、Q 值、概率、向听数和 Mortal 模型版本。
-- 重放 `mjai_log`，补充决策前的分数、宝牌、牌河、副露、立直状态和可见牌统计。
-- 使用本地 SQLite 保存复盘、明确反馈和可以确认、纠正、否认或遗忘的长期画像。
-- 从牌谱屋增量同步公开的四麻半庄段位场元数据，在交互目录中筛选、翻页和选择牌局。
-- 单机单主人；一份安装可以绑定多个雀魂账号，但没有登录或多用户系统。
+- 在 Codex 对话中直接复盘雀魂四人半庄牌谱。
+- 使用 Mortal Web 远程分析，无需在本机运行 Mortal 模型。
+- 结合候选动作、Q 值、向听数、分数、牌河、副露和可见牌解释关键决策。
+- 将明确反馈和多场牌谱中的重复倾向整理为可确认、纠正或遗忘的长期画像。
+- 从牌谱屋同步公开牌局，并在交互目录中筛选和选择要复盘的对局。
 
-MJTutor 不会把 Mortal 的偏好自动称为错误，也不会声称 Mortal 能解释自己的内部原因。
-
-## 安装插件
+## 安装
 
 需要：
 
 - macOS 或 Linux。
 - [Codex 桌面端](https://developers.openai.com/codex/app) 或 Codex CLI。
-- [`uv`](https://docs.astral.sh/uv/getting-started/installation/)；第一次启动 MCP 时会用它准备 Python 3.11+ 和轻量依赖。
+- [`uv`](https://docs.astral.sh/uv/getting-started/installation/)。
 
-### 从 Codex 桌面端添加
+### Codex 桌面端
 
 在 **Plugins -> Add from GitHub** 中添加：
 
@@ -40,9 +39,9 @@ MJTutor 不会把 Mortal 的偏好自动称为错误，也不会声称 Mortal �
 ukicey/MJTutor
 ```
 
-然后安装列表中的 **MJTutor**。安装完成后新建一个任务，让 Codex 加载插件的 Skill 和 MCP。日常使用不需要克隆仓库，也不需要把 MJTutor 作为项目打开。
+安装列表中的 **MJTutor**，然后新建一个任务以加载插件。
 
-### 使用 CLI 添加
+### Codex CLI
 
 ```bash
 codex plugin marketplace add ukicey/MJTutor --ref main
@@ -55,7 +54,7 @@ codex plugin add mjtutor@mjtutor
 检查 MJTutor 配置和已有画像，不要开始教学。
 ```
 
-## 复盘一局
+## 复盘牌谱
 
 把雀魂牌谱链接直接发给 Codex，例如：
 
@@ -64,14 +63,9 @@ codex plugin add mjtutor@mjtutor
 https://game.maj-soul.com/1/?paipu=...
 ```
 
-默认的 Mortal Web 流程是：
-
-1. 插件生成已经填好牌谱地址、`4.1b` 模型和中文界面的 Mortal Web 页面。
-2. 用户在可见浏览器中亲自完成 Cloudflare Turnstile 并提交。
-3. 插件导入生成的 `/report/*.json` 报告。
-4. 教练先选择最多三个最有教学价值的决策，再按用户追问展开。
-
-MJTutor 不会绕过、破解或外包 Turnstile。Mortal Web 没有本项目可以依赖的公开提交 API，因此这一步不能无人值守。
+MJTutor 会打开已经填好牌谱地址和分析选项的 Mortal Web 页面。请在页面中亲自
+完成 Cloudflare Turnstile 并提交；报告生成后，MJTutor 会导入分析结果并开始
+复盘。该人工验证无法由插件代为完成。
 
 ## 牌局目录
 
@@ -81,117 +75,60 @@ MJTutor 不会绕过、破解或外包 Turnstile。Mortal Web 没有本项目可
 打开我的 MJTutor 牌局目录。
 ```
 
-目录由 MCP App 渲染，不需要把大量牌局记录放进聊天上下文。它支持账号、顺位、日期和是否已复盘筛选，也可以选择一局并进入现有 Mortal Web 流程。在暂不渲染 MCP App 的客户端，`list_koromo_games`、`sync_koromo_games` 和 `prepare_selected_game_review` 仍可单独使用。
+目录支持按账号、顺位、日期和复盘状态筛选牌局，也可以手动刷新并选择一局进入
+复盘。账号绑定是可选的，不影响直接使用雀魂牌谱链接。
 
-“自动同步”采用轻量的机会式策略：打开目录时，若距离上次尝试已超过 30 分钟，就增量查询牌谱屋；也可以在目录中手动刷新。MJTutor 不安装常驻进程，不会在 Codex 未运行时后台活动，也不会把同步到的牌局自动送去 Mortal。
+MJTutor 使用经过你确认的牌谱屋 `account_id` 识别账号，昵称只用于显示。牌谱屋
+的数据可能延迟、不完整或要求额外验证；遇到访问限制时，MJTutor 会继续显示已经
+保存的本地记录。
 
-首次同步默认查询最近一年；后续同步会回看最近一周，避免遗漏牌谱屋延迟出现的记录。牌局按 UUID 去重并保存到 `~/.local/share/mjtutor/coach.sqlite3`。
+## 长期记忆
 
-牌谱屋目前可能要求其网页计算挑战或站方访问密钥。MJTutor 不绕过该验证；遇到时会继续显示本地缓存并报告 `verification_required`。如果站方提供访问密钥，可在启动 MCP 的环境中设置 `MJTUTOR_KOROMO_TOKEN`。直接在牌谱屋网页正常浏览仍不受 MJTutor 控制。
-
-## 长期记忆与画像
-
-插件记忆独立于聊天记录和插件安装目录，默认保存在：
+复盘、反馈和长期画像默认保存在：
 
 ```text
 ~/.local/share/mjtutor/coach.sqlite3
 ```
 
-如果设置了 `XDG_DATA_HOME`，位置为 `$XDG_DATA_HOME/mjtutor/coach.sqlite3`；也可以用 `MJTUTOR_DATA_DIR` 指定目录。
+如果设置了 `XDG_DATA_HOME`，保存位置为
+`$XDG_DATA_HOME/mjtutor/coach.sqlite3`。也可以用 `MJTUTOR_DATA_DIR` 指定其他目录。
 
-数据库分为三层证据：
+画像中的信息分为三类：
 
-1. **客观观察**：实际动作、Mortal 推荐、候选排名、Q 差、局面索引和模型版本。它们不是自动判定的弱点。
-2. **暂定画像**：跨多场重复后提出的、带置信度和适用场景的假设，同时保存支持案例和反例。
-3. **确认画像**：用户明确确认或纠正的风格、弱点、优势、目标、疑问、已理解内容和教学偏好。
+1. **客观观察**：实际动作、Mortal 推荐和当时的局面证据。
+2. **暂定画像**：根据多场牌谱提出、仍需验证的倾向。
+3. **确认画像**：由你明确确认或纠正的风格、目标、弱点、优势和教学偏好。
 
-数据库位于插件之外，因此刷新 GitHub marketplace、更新或重装插件都不会覆盖画像。
+数据库独立于插件安装目录，更新或重装插件不会覆盖它。
 
-### 从旧项目模式迁移
+## 更新
 
-旧版数据库位于仓库的 `data/coach.sqlite3`。退出正在使用 MJTutor 的旧任务后，先备份，再迁移：
-
-```bash
-mkdir -p "$HOME/.local/share/mjtutor"
-cp data/coach.sqlite3 "$HOME/.local/share/mjtutor/coach.sqlite3"
-```
-
-如果目标位置已经存在数据库，不要直接覆盖；请先分别备份，再决定保留哪一份。
-
-## 更新插件
-
-各版本的功能变化与迁移提示见 [更新日志](CHANGELOG.md)。
-
-GitHub 上发布新版本后，CLI 的确定流程是：
+各版本的变化见 [更新日志](CHANGELOG.md)。使用 CLI 更新：
 
 ```bash
 codex plugin marketplace upgrade mjtutor
 codex plugin add mjtutor@mjtutor
 ```
 
-然后新建一个任务以加载新版 Skill 和 MCP。桌面端若显示更新按钮，也可以在插件页完成同一流程。
+更新后请新建一个任务，以加载新版插件。桌面端显示更新按钮时，也可以
+直接在插件页面完成更新。
 
-更新不会修改 `~/.local/share/mjtutor/`。插件清单使用语义化版本，发布时会同步更新版本号；当前 Codex 不会把一个正在进行的旧任务热切换到新版插件。
+## 反馈
 
-## 账号绑定
+遇到问题、有功能建议，或者希望反馈教学解释与画像效果时，请使用
+[GitHub Issues](https://github.com/ukicey/MJTutor/issues/new/choose)。仓库提供问题报告、
+功能建议和教学反馈三种模板。
 
-绑定账号是可选项。没有绑定账号也可以导入牌谱、建立观察和使用长期画像。
-
-MJTutor 把昵称用于显示，把经过用户确认的牌谱屋 `account_id` 作为稳定标识。昵称可能重复或变化；插件不会凭同名搜索结果或牌谱链接自动认领身份。
-
-牌谱屋目前主要覆盖金、玉、王座段位场，数据可能延迟或不完整。未被牌谱屋收录不代表雀魂账号没有 `account_id`。
+Issue 是公开的。请勿上传 `coach.sqlite3`、访问密钥，或任何不愿公开的真实牌谱和
+个人信息；错误日志和截图也请先脱敏。
 
 ## 数据与隐私
 
-本地数据库可能包含：
+本地数据库可能包含雀魂账号和昵称、Mortal 报告、牌谱复盘、教学记录和画像证据。
+这些数据不会进入 GitHub 仓库或插件包，MJTutor 也不会主动上传数据库或画像。
 
-- 雀魂账号、当前昵称和昵称历史。
-- Mortal 原始报告 JSON。
-- 复盘及决策前公开桌面状态。
-- 客观决策观察、教学记录和画像证据。
-
-这些数据不会进入 GitHub 仓库或插件包。MJTutor 不会主动上传数据库或画像；只有用户明确选择 Mortal Web 分析时，相应的雀魂牌谱链接才会交给第三方站点。
-
-## 当前限制
-
-- 只支持雀魂四人半庄；牌谱格式不总能可靠区分段位场与友人场。
-- Mortal Web 需要人工验证。
-- 牌谱屋可能延迟、不完整或要求浏览器验证；未收录不代表牌局不存在。
-- 牌局目录是宿主支持时显示的 MCP App，不是独立桌面程序。
-- 不提供自动雀魂登录、常驻后台进程、实时对局辅助或远程托管服务。
-- 插件启动器当前面向 macOS/Linux。
-- Mortal 和 `mjai-reviewer` 是外部项目，本仓库不包含其源码或模型权重。
-
-## 开发
-
-运行源码只保留在 `plugins/mjtutor/`。仓库根目录的 Python 工程仅用于测试和构建插件，不会让 Codex 以“项目模式”自动加载 MJTutor。
-
-```bash
-git clone https://github.com/ukicey/MJTutor.git
-cd MJTutor
-uv sync
-uv run ruff format --check plugins/mjtutor/src tests
-uv run ruff check plugins/mjtutor/src tests
-uv run pytest
-uv run python -m compileall -q plugins/mjtutor/src tests
-```
-
-Python 代码使用 Ruff 格式化和静态检查，统一限制为 88 列。提交修改前，可用
-`uv run ruff format plugins/mjtutor/src tests` 自动格式化。
-
-插件结构：
-
-```text
-.agents/plugins/marketplace.json
-plugins/mjtutor/.codex-plugin/plugin.json
-plugins/mjtutor/.mcp.json
-plugins/mjtutor/assets/game-catalog.html
-plugins/mjtutor/bin/mjtutor-mcp
-plugins/mjtutor/skills/coach-mahjong-soul/
-plugins/mjtutor/src/mjtutor/
-```
-
-Mortal 使用 AGPL-3.0-or-later，`mjai-reviewer` 使用 Apache-2.0；MJTutor 只通过网页或进程接口使用它们。
+只有在你选择 Mortal Web 分析时，相应的雀魂牌谱链接才会发送给该第三方服务。
+牌谱屋同步同样依赖第三方公开数据服务。
 
 ## 许可证
 

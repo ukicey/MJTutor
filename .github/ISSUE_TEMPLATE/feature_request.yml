@@ -1,0 +1,39 @@
+name: "功能建议 / Feature request / 機能提案"
+description: "建议新的复盘、画像、牌局目录或使用体验"
+title: "[Feature] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请先描述你想完成的事情；不必预先设计技术实现。
+
+  - type: textarea
+    id: use_case
+    attributes:
+      label: "使用场景 / Use case / 利用場面"
+      description: "你在什么情况下需要这个功能？"
+    validations:
+      required: true
+
+  - type: textarea
+    id: desired_result
+    attributes:
+      label: "期望结果 / Desired result / 期待する結果"
+      description: "理想情况下，MJTutor 应该怎样回应或操作？"
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: "目前的替代方式 / Current workaround / 現在の代替手段"
+      description: "可选。你现在如何完成这件事？"
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: "范围确认 / Scope / 対象範囲"
+      options:
+        - label: "这个建议与雀魂四人半庄复盘或 MJTutor 的教学体验有关。"
+          required: true

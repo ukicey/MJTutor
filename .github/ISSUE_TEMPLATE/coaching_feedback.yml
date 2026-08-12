@@ -1,0 +1,53 @@
+name: "教学反馈 / Coaching feedback / 指導フィードバック"
+description: "反馈解释是否清楚、画像是否准确，以及哪些环节真正有帮助"
+title: "[Coaching] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        这类反馈用于改进教学方式，而不只是修复程序错误。请勿公开不愿分享的牌谱或个人数据。
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: "反馈主题 / Topic / テーマ"
+      options:
+        - "决策解释 / Decision explanation / 判断の説明"
+        - "长期画像 / Long-term profile / 長期プロフィール"
+        - "追问体验 / Follow-up conversation / 追加質問"
+        - "重点选择 / Decision selection / 重点の選択"
+        - "其他 / Other / その他"
+    validations:
+      required: true
+
+  - type: textarea
+    id: useful
+    attributes:
+      label: "有帮助的部分 / What helped / 役立った点"
+
+  - type: textarea
+    id: confusing
+    attributes:
+      label: "不准确或难理解的部分 / What was unclear / 不正確・分かりにくかった点"
+    validations:
+      required: true
+
+  - type: textarea
+    id: improvement
+    attributes:
+      label: "希望如何改进 / Suggested improvement / 改善案"
+
+  - type: input
+    id: version
+    attributes:
+      label: "MJTutor 版本 / Version / バージョン"
+      placeholder: "例如 v0.3.0"
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: "隐私确认 / Privacy / プライバシー"
+      options:
+        - label: "我已移除不愿公开的牌谱、账号和其他个人信息。"
+          required: true

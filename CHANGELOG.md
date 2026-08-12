@@ -16,6 +16,7 @@
 - 增加机会式自动同步：打开目录时按间隔刷新，同时保留手动刷新入口。
 - 增加从目录中选择牌局并进入 Mortal Web 复盘的流程。
 - 增加牌谱屋同步状态和访问验证状态提示；远端不可用时继续显示本地缓存。
+- 增加问题报告、功能建议和教学反馈的 GitHub Issue 表单。
 
 ### 变更
 
@@ -39,8 +40,8 @@
 
 ### 迁移说明
 
-- 从旧项目模式升级的用户，需要在退出旧任务后备份并迁移仓库内的
-  `data/coach.sqlite3`。详细步骤见 README 的“从旧项目模式迁移”。
+- 从旧项目模式升级的用户，需要在退出旧任务后备份仓库内的
+  `data/coach.sqlite3`，并将数据库迁移到 `~/.local/share/mjtutor/coach.sqlite3`。
 
 ## [0.1.0] - 2026-08-11
 
@@ -60,7 +61,7 @@
 
 - 从公开测试夹具中移除真实雀魂牌谱码。
 
-[Unreleased]: https://github.com/ukicey/MJTutor/compare/b6849d9...HEAD
-[0.3.0]: https://github.com/ukicey/MJTutor/compare/9dd7d5b...b6849d9
+[Unreleased]: https://github.com/ukicey/MJTutor/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/ukicey/MJTutor/compare/9dd7d5b...v0.3.0
 [0.2.0]: https://github.com/ukicey/MJTutor/compare/f4946eb...9dd7d5b
 [0.1.0]: https://github.com/ukicey/MJTutor/tree/f4946eb
