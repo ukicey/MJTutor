@@ -1,0 +1,22 @@
+#!/bin/sh
+set -eu
+
+PLUGIN_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+export PYTHONPATH="$PLUGIN_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
+
+if [ -z "${MJTUTOR_DATA_DIR:-}" ]; then
+  DATA_HOME=${XDG_DATA_HOME:-"${HOME}/.local/share"}
+  export MJTUTOR_DATA_DIR="$DATA_HOME/mjtutor"
+fi
+
+if ! command -v uv >/dev/null 2>&1; then
+  echo "MJTutor requires uv: https://docs.astral.sh/uv/" >&2
+  exit 127
+fi
+
+exec uv run \
+  --quiet \
+  --isolated \
+  --python ">=3.11" \
+  --with "mcp>=2.0,<3" \
+  python -m mjtutor.mcp_server

@@ -326,7 +326,13 @@ def default_database_path() -> Path:
     if configured:
         data_dir = Path(configured).expanduser()
     else:
-        data_dir = Path(__file__).resolve().parents[2] / "data"
+        configured_home = os.environ.get("XDG_DATA_HOME")
+        data_home = (
+            Path(configured_home).expanduser()
+            if configured_home
+            else Path.home() / ".local" / "share"
+        )
+        data_dir = data_home / "mjtutor"
     return data_dir / "coach.sqlite3"
 
 

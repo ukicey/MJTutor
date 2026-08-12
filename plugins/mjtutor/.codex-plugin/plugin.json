@@ -1,0 +1,39 @@
+{
+  "name": "mjtutor",
+  "version": "0.2.0",
+  "description": "Evidence-backed Mahjong Soul hanchan coaching with Mortal Web and local memory.",
+  "author": {
+    "name": "ukicey",
+    "url": "https://github.com/ukicey"
+  },
+  "homepage": "https://github.com/ukicey/MJTutor#readme",
+  "repository": "https://github.com/ukicey/MJTutor",
+  "license": "MIT",
+  "keywords": [
+    "riichi-mahjong",
+    "mahjong-soul",
+    "mortal",
+    "coaching"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "MJTutor",
+    "shortDescription": "用 Mortal 证据复盘雀魂四麻半庄",
+    "longDescription": "MJTutor 把 Mortal Web 的结构化判断交给 Codex，结合牌河、分数、可见牌和本地长期记忆，进行可以追问、可以纠正的雀魂四麻半庄复盘。Mortal Web 保留为可见侧屏，并由用户人工完成 Turnstile。",
+    "developerName": "ukicey",
+    "category": "Education & Research",
+    "capabilities": [
+      "Mahjong Soul hanchan review",
+      "Mortal Web report import",
+      "Local coaching memory"
+    ],
+    "websiteURL": "https://github.com/ukicey/MJTutor",
+    "brandColor": "#16735B",
+    "defaultPrompt": [
+      "复盘这份雀魂四麻半庄牌谱，先挑最值得讲的三个决策。",
+      "检查 MJTutor 配置和已有画像，不要开始教学。",
+      "解释这个决策为什么和 Mortal 不同，并区分事实与推测。"
+    ]
+  }
+}

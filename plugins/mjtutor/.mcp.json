@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "mjtutor": {
+      "command": "./bin/mjtutor-mcp",
+      "cwd": "."
+    }
+  }
+}

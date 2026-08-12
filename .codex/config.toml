@@ -1,9 +1,0 @@
-[mcp_servers.mjtutor]
-command = "uv"
-args = [
-  "--directory",
-  ".",
-  "run",
-  "mjtutor-mcp",
-]
-startup_timeout_sec = 60
