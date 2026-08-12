@@ -25,7 +25,9 @@ class LogMetadata:
         return asdict(self)
 
 
-def inspect_tenhou_v6_log(path: str | Path, *, require_hanchan: bool = True) -> LogMetadata:
+def inspect_tenhou_v6_log(
+    path: str | Path, *, require_hanchan: bool = True
+) -> LogMetadata:
     source = Path(path).expanduser().resolve()
     if not source.is_file():
         raise InvalidLogError(f"Log file does not exist: {source}")
@@ -57,7 +59,8 @@ def inspect_tenhou_v6_log(path: str | Path, *, require_hanchan: bool = True) -> 
         raise InvalidLogError("Only four-player Mahjong Soul logs are supported")
     if require_hanchan and not is_hanchan:
         raise InvalidLogError(
-            "Only hanchan (South-round) logs are supported; the rule metadata does not identify this log as hanchan"
+            "Only hanchan (South-round) logs are supported; the rule metadata "
+            "does not identify this log as hanchan"
         )
 
     reference = document.get("ref")

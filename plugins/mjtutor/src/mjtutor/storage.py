@@ -292,8 +292,9 @@ class ReviewRepository:
         players = snapshot["players"]
         if len(players) > 1:
             raise CoachError(
-                "This database contains multiple legacy players. MJTutor will not merge "
-                "their profiles automatically; resolve them before single-user migration."
+                "This database contains multiple legacy players. MJTutor will not "
+                "merge their profiles automatically; resolve them before single-user "
+                "migration."
             )
 
     @staticmethod
@@ -505,8 +506,8 @@ class ReviewRepository:
         for row in snapshot["decision_observations"]:
             connection.execute(
                 f"""
-                INSERT INTO decision_observations ({', '.join(observation_fields)})
-                VALUES ({', '.join('?' for _ in observation_fields)})
+                INSERT INTO decision_observations ({", ".join(observation_fields)})
+                VALUES ({", ".join("?" for _ in observation_fields)})
                 """,
                 tuple(row[field] for field in observation_fields),
             )
@@ -526,8 +527,8 @@ class ReviewRepository:
         for row in snapshot["profile_items"]:
             connection.execute(
                 f"""
-                INSERT INTO profile_items ({', '.join(profile_fields)})
-                VALUES ({', '.join('?' for _ in profile_fields)})
+                INSERT INTO profile_items ({", ".join(profile_fields)})
+                VALUES ({", ".join("?" for _ in profile_fields)})
                 """,
                 tuple(row[field] for field in profile_fields),
             )
@@ -545,8 +546,8 @@ class ReviewRepository:
         for row in snapshot["profile_evidence"]:
             connection.execute(
                 f"""
-                INSERT INTO profile_evidence ({', '.join(evidence_fields)})
-                VALUES ({', '.join('?' for _ in evidence_fields)})
+                INSERT INTO profile_evidence ({", ".join(evidence_fields)})
+                VALUES ({", ".join("?" for _ in evidence_fields)})
                 """,
                 tuple(row[field] for field in evidence_fields),
             )
@@ -687,10 +688,13 @@ class ReviewRepository:
         inserted = 0
         updated = 0
         with closing(self._connect()) as connection:
-            if connection.execute(
-                "SELECT 1 FROM majsoul_accounts WHERE account_id = ?",
-                (account_id,),
-            ).fetchone() is None:
+            if (
+                connection.execute(
+                    "SELECT 1 FROM majsoul_accounts WHERE account_id = ?",
+                    (account_id,),
+                ).fetchone()
+                is None
+            ):
                 raise CoachError(f"Koromo account is not bound: {account_id}")
             reviews_by_uuid = {
                 paipu_uuid: str(row["id"])
@@ -761,7 +765,8 @@ class ReviewRepository:
         now = _now()
         with closing(self._connect()) as connection:
             current = connection.execute(
-                "SELECT last_success_at, latest_game_start FROM koromo_sync_state WHERE account_id = ?",
+                "SELECT last_success_at, latest_game_start "
+                "FROM koromo_sync_state WHERE account_id = ?",
                 (account_id,),
             ).fetchone()
             previous_latest = (
@@ -769,11 +774,15 @@ class ReviewRepository:
                 if current is not None and current["latest_game_start"] is not None
                 else None
             )
-            next_latest = max(
-                value
-                for value in (previous_latest, latest_game_start)
-                if value is not None
-            ) if previous_latest is not None or latest_game_start is not None else None
+            next_latest = (
+                max(
+                    value
+                    for value in (previous_latest, latest_game_start)
+                    if value is not None
+                )
+                if previous_latest is not None or latest_game_start is not None
+                else None
+            )
             previous_success = (
                 str(current["last_success_at"])
                 if current is not None and current["last_success_at"] is not None
@@ -820,7 +829,9 @@ class ReviewRepository:
         identity = self.get_local_identity()
         accounts = identity["accounts"]
         if account_id is not None:
-            accounts = [item for item in accounts if int(item["account_id"]) == account_id]
+            accounts = [
+                item for item in accounts if int(item["account_id"]) == account_id
+            ]
             if not accounts:
                 raise CoachError(f"Koromo account is not bound: {account_id}")
         with closing(self._connect()) as connection:
@@ -866,7 +877,9 @@ class ReviewRepository:
             conditions.append("g.player_rank = ?")
             parameters.append(rank)
         if reviewed is not None:
-            conditions.append("g.review_id IS NOT NULL" if reviewed else "g.review_id IS NULL")
+            conditions.append(
+                "g.review_id IS NOT NULL" if reviewed else "g.review_id IS NULL"
+            )
         if start_time is not None:
             conditions.append("g.start_time >= ?")
             parameters.append(start_time)
@@ -1044,7 +1057,9 @@ class ReviewRepository:
                 str(decision.actual.get("type", "unknown")),
                 str(decision.expected.get("type", "unknown")),
                 json.dumps(decision.actual, ensure_ascii=False, separators=(",", ":")),
-                json.dumps(decision.expected, ensure_ascii=False, separators=(",", ":")),
+                json.dumps(
+                    decision.expected, ensure_ascii=False, separators=(",", ":")
+                ),
                 int(decision.matches_mortal),
                 decision.actual_index + 1,
                 decision.q_gap,
@@ -1174,8 +1189,8 @@ class ReviewRepository:
             "disagreement_action_patterns": [dict(row) for row in patterns],
             "interpretation_notice": (
                 "These are objective action comparisons, not stable traits. "
-                "Q values and match rates from different Mortal model tags must not be merged "
-                "into a universal skill score."
+                "Q values and match rates from different Mortal model tags must "
+                "not be merged into a universal skill score."
             ),
         }
 
@@ -1326,7 +1341,11 @@ class ReviewRepository:
                 {status_clause}
                 GROUP BY p.id
                 ORDER BY
-                    CASE p.status WHEN 'confirmed' THEN 0 WHEN 'tentative' THEN 1 ELSE 2 END,
+                    CASE p.status
+                        WHEN 'confirmed' THEN 0
+                        WHEN 'tentative' THEN 1
+                        ELSE 2
+                    END,
                     p.updated_at DESC
                 """
             ).fetchall()
@@ -1452,16 +1471,23 @@ class ReviewRepository:
         items = self.list_profile_items(include_rejected=include_rejected)
         return {
             "local_profile": self.get_local_identity(),
-            "confirmed_profile": [item for item in items if item["status"] == "confirmed"],
-            "tentative_profile": [item for item in items if item["status"] == "tentative"],
-            "rejected_profile": [item for item in items if item["status"] == "rejected"],
+            "confirmed_profile": [
+                item for item in items if item["status"] == "confirmed"
+            ],
+            "tentative_profile": [
+                item for item in items if item["status"] == "tentative"
+            ],
+            "rejected_profile": [
+                item for item in items if item["status"] == "rejected"
+            ],
             "explicit_note_counts": [dict(row) for row in totals],
             "recent_explicit_notes": [dict(row) for row in recent],
             "observation_summary": self.observation_summary(),
             "notice": (
-                "Confirmed items reflect explicit user confirmation. Tentative items are "
-                "coach hypotheses and must remain confidence-labelled and context-specific. "
-                "Objective observations and Mortal disagreement are not automatically weaknesses."
+                "Confirmed items reflect explicit user confirmation. Tentative "
+                "items are coach hypotheses and must remain confidence-labelled "
+                "and context-specific. Objective observations and Mortal "
+                "disagreement are not automatically weaknesses."
             ),
         }
 

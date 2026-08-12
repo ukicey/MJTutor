@@ -24,6 +24,7 @@ def test_rejects_non_majsoul_url() -> None:
 
 
 def test_converts_report_html_url_to_json() -> None:
-    assert normalize_report_json_url(
-        "https://mjai.ekyu.moe/report/example.html"
-    ) == "https://mjai.ekyu.moe/report/example.json"
+    assert (
+        normalize_report_json_url("https://mjai.ekyu.moe/report/example.html")
+        == "https://mjai.ekyu.moe/report/example.json"
+    )

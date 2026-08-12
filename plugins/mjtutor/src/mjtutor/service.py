@@ -179,7 +179,9 @@ class CoachService:
         identity = self.repository.get_local_identity()
         accounts = identity["accounts"]
         if account_id is not None:
-            accounts = [item for item in accounts if int(item["account_id"]) == account_id]
+            accounts = [
+                item for item in accounts if int(item["account_id"]) == account_id
+            ]
             if not accounts:
                 raise CoachError(f"Koromo account is not bound: {account_id}")
         lookback_days = max(1, min(int(lookback_days), 3650))

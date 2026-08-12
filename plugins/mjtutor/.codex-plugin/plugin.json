@@ -32,9 +32,8 @@
     "websiteURL": "https://github.com/ukicey/MJTutor",
     "brandColor": "#16735B",
     "defaultPrompt": [
-      "复盘这份雀魂四麻半庄牌谱，先挑最值得讲的三个决策。",
       "检查 MJTutor 配置和已有画像，不要开始教学。",
-      "解释这个决策为什么和 Mortal 不同，并区分事实与推测。",
+      "复盘这份雀魂四麻半庄牌谱，先挑三个关键决策，解释我和 Mortal 的差异。",
       "打开我的 MJTutor 牌局目录。"
     ]
   }

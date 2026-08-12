@@ -21,13 +21,17 @@ def test_extracts_player_from_paipu_viewer_suffix() -> None:
     )
 
     assert extract_koromo_player_id(url) == 1_355_604
-    assert extract_koromo_player_id(
-        "https://game.maj-soul.com/1/?paipu=260618-example"
-    ) is None
+    assert (
+        extract_koromo_player_id("https://game.maj-soul.com/1/?paipu=260618-example")
+        is None
+    )
 
 
 def test_extracts_uuid_without_viewer_suffix() -> None:
-    assert extract_paipu_uuid(
-        "https://game.maj-soul.com/1/?paipu=260618-example_a93787137"
-    ) == "260618-example"
+    assert (
+        extract_paipu_uuid(
+            "https://game.maj-soul.com/1/?paipu=260618-example_a93787137"
+        )
+        == "260618-example"
+    )
     assert extract_paipu_uuid("https://example.com/") is None

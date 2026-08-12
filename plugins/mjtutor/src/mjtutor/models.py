@@ -90,7 +90,9 @@ class Decision:
             actual_index=actual_index,
             candidates=candidates,
             last_actor=(
-                int(raw["last_actor"]) if isinstance(raw.get("last_actor"), int) else None
+                int(raw["last_actor"])
+                if isinstance(raw.get("last_actor"), int)
+                else None
             ),
             tile=str(raw["tile"]) if isinstance(raw.get("tile"), str) else None,
             at_self_chi_pon=bool(raw.get("at_self_chi_pon", False)),
@@ -137,8 +139,9 @@ class Decision:
             "q_gap": self.q_gap,
             "candidates": [candidate.as_dict() for candidate in candidates],
             "evidence_notice": (
-                "q_value and probability are Mortal outputs. Tactical reasons are not provided by Mortal "
-                "and must be presented as rule-derived facts or coaching hypotheses."
+                "q_value and probability are Mortal outputs. Tactical reasons "
+                "are not provided by Mortal and must be presented as "
+                "rule-derived facts or coaching hypotheses."
             ),
         }
         if include_context:
@@ -199,10 +202,14 @@ class ReviewDocument:
 
         return cls(
             model_tag=str(review.get("model_tag", "unknown")),
-            rating=float(review["rating"]) if review.get("rating") is not None else None,
+            rating=float(review["rating"])
+            if review.get("rating") is not None
+            else None,
             total_reviewed=int(review.get("total_reviewed", len(decisions))),
             total_matches=int(
-                review.get("total_matches", sum(item.matches_mortal for item in decisions))
+                review.get(
+                    "total_matches", sum(item.matches_mortal for item in decisions)
+                )
             ),
             decisions=decision_tuple,
             raw=raw,
@@ -226,7 +233,9 @@ class ReviewDocument:
             "total_reviewed": self.total_reviewed,
             "total_matches": self.total_matches,
             "match_rate": (
-                self.total_matches / self.total_reviewed if self.total_reviewed else None
+                self.total_matches / self.total_reviewed
+                if self.total_reviewed
+                else None
             ),
             "weak_decisions": [
                 item.as_dict(candidate_limit=3, include_context=False) for item in weak

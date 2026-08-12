@@ -21,9 +21,13 @@ def build_parser() -> argparse.ArgumentParser:
     account_parser.add_argument("nickname")
     account_parser.add_argument("koromo_player_id", type=int)
 
-    commands.add_parser("profile", help="show local accounts and compact coaching memory")
+    commands.add_parser(
+        "profile", help="show local accounts and compact coaching memory"
+    )
 
-    inspect_parser = commands.add_parser("inspect", help="validate a Mahjong Soul export")
+    inspect_parser = commands.add_parser(
+        "inspect", help="validate a Mahjong Soul export"
+    )
     inspect_parser.add_argument("log_path")
 
     review_parser = commands.add_parser("review", help="run and store a Mortal review")
@@ -52,7 +56,9 @@ def build_parser() -> argparse.ArgumentParser:
     list_parser = commands.add_parser("list", help="list stored reviews")
     list_parser.add_argument("--limit", type=int, default=20)
 
-    summary_parser = commands.add_parser("summary", help="show the largest disagreements")
+    summary_parser = commands.add_parser(
+        "summary", help="show the largest disagreements"
+    )
     summary_parser.add_argument("review_id")
     summary_parser.add_argument("--limit", type=int, default=10)
 
@@ -88,7 +94,9 @@ def main() -> None:
             source_log_url=args.majsoul_log_url,
         ),
         "list": lambda: service.list_reviews(limit=args.limit),
-        "summary": lambda: service.review_summary(args.review_id, weak_limit=args.limit),
+        "summary": lambda: service.review_summary(
+            args.review_id, weak_limit=args.limit
+        ),
         "decision": lambda: service.decision(
             args.review_id, args.decision_id, candidate_limit=args.candidates
         ),

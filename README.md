@@ -1,8 +1,16 @@
 # MJTutor
 
+<p align="center">
+  <strong>简体中文</strong> |
+  <a href="README.en.md">English</a> |
+  <a href="README.ja.md">日本語</a>
+</p>
+
 MJTutor 是一个面向 Codex 的本地日麻复盘插件。Mortal 负责评估牌谱动作，插件通过 MCP 保存结构化证据，Codex Skill 再把牌谱事实、Mortal 判断、规则推导和教练推测组织成可以追问的教学对话。
 
 > 当前状态：个人 MVP。雀魂四麻半庄、牌谱屋本地目录、Mortal Web 报告导入、决策查询、本地记忆和可纠正画像已经可用。Mortal Web 仍需用户亲自完成 Turnstile。
+
+[查看更新日志](CHANGELOG.md)
 
 ## 功能
 
@@ -21,7 +29,7 @@ MJTutor 不会把 Mortal 的偏好自动称为错误，也不会声称 Mortal �
 需要：
 
 - macOS 或 Linux。
-- [Codex 桌面端](https://developers.openai.com/codex/app)或 Codex CLI。
+- [Codex 桌面端](https://developers.openai.com/codex/app) 或 Codex CLI。
 - [`uv`](https://docs.astral.sh/uv/getting-started/installation/)；第一次启动 MCP 时会用它准备 Python 3.11+ 和轻量依赖。
 
 ### 从 Codex 桌面端添加
@@ -112,6 +120,8 @@ cp data/coach.sqlite3 "$HOME/.local/share/mjtutor/coach.sqlite3"
 
 ## 更新插件
 
+各版本的功能变化与迁移提示见 [更新日志](CHANGELOG.md)。
+
 GitHub 上发布新版本后，CLI 的确定流程是：
 
 ```bash
@@ -160,9 +170,14 @@ MJTutor 把昵称用于显示，把经过用户确认的牌谱屋 `account_id` �
 git clone https://github.com/ukicey/MJTutor.git
 cd MJTutor
 uv sync
+uv run ruff format --check plugins/mjtutor/src tests
+uv run ruff check plugins/mjtutor/src tests
 uv run pytest
 uv run python -m compileall -q plugins/mjtutor/src tests
 ```
+
+Python 代码使用 Ruff 格式化和静态检查，统一限制为 88 列。提交修改前，可用
+`uv run ruff format plugins/mjtutor/src tests` 自动格式化。
 
 插件结构：
 

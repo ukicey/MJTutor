@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import json
 import os
-import socket
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any, Callable
+from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -106,9 +106,7 @@ class KoromoCatalogClient:
                 "descending": "true",
             }
         )
-        path = (
-            f"/api/v2/pl4/player_records/{account_id}/{end_ms}/{start_ms}?{query}"
-        )
+        path = f"/api/v2/pl4/player_records/{account_id}/{end_ms}/{start_ms}?{query}"
         payload = self._get_json(path)
         if not isinstance(payload, list):
             raise KoromoAccessError("Koromo returned an unexpected game-list response")
@@ -129,8 +127,9 @@ class KoromoCatalogClient:
                 body = error.read().decode("utf-8", errors="replace")
                 if error.code == 429 and "x-cap-token-required" in body:
                     raise KoromoVerificationRequired(
-                        "Koromo requires its browser challenge or an authorized access key. "
-                        "Open Koromo normally in a browser, or configure an access key supplied "
+                        "Koromo requires its browser challenge or an authorized "
+                        "access key. Open Koromo normally in a browser, or configure "
+                        "an access key supplied "
                         "by the site owner as MJTUTOR_KOROMO_TOKEN."
                     ) from error
                 last_error = KoromoAccessError(
@@ -138,7 +137,7 @@ class KoromoCatalogClient:
                 )
                 if error.code < 500:
                     break
-            except (TimeoutError, socket.timeout, URLError, json.JSONDecodeError) as error:
+            except (TimeoutError, URLError, json.JSONDecodeError) as error:
                 last_error = error
         raise KoromoAccessError(
             "Koromo could not be reached from any configured data mirror"
@@ -170,7 +169,9 @@ def parse_koromo_game(raw: Any, *, account_id: int) -> KoromoGame:
         None,
     )
     if owner_index is None:
-        raise KoromoAccessError("Koromo game record does not contain the requested account")
+        raise KoromoAccessError(
+            "Koromo game record does not contain the requested account"
+        )
     mode_id = int(raw.get("modeId", raw.get("mode_id", 0)))
     if mode_id not in HANCHAN_MODES:
         raise KoromoAccessError(f"Unsupported Koromo game mode: {mode_id}")
@@ -200,7 +201,9 @@ def make_paipu_url(uuid: str, account_id: int) -> str:
 
 def default_initial_start_ms(now: datetime | None = None) -> int:
     current = now or datetime.now(UTC)
-    return int((current - timedelta(days=DEFAULT_INITIAL_LOOKBACK_DAYS)).timestamp() * 1000)
+    return int(
+        (current - timedelta(days=DEFAULT_INITIAL_LOOKBACK_DAYS)).timestamp() * 1000
+    )
 
 
 def _parse_player(raw: Any) -> dict[str, Any]:
@@ -212,8 +215,6 @@ def _parse_player(raw: Any) -> dict[str, Any]:
         "level": int(raw.get("level", 0)),
         "score": int(raw.get("score", 0)),
         "grading_score": (
-            int(raw["gradingScore"])
-            if raw.get("gradingScore") is not None
-            else None
+            int(raw["gradingScore"]) if raw.get("gradingScore") is not None else None
         ),
     }

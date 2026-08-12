@@ -195,9 +195,7 @@ def test_profile_items_use_single_local_owner(tmp_path: Path) -> None:
         source="coach_hypothesis",
     )
     repository.resolve_profile_item(item_id=rejected["id"], action="reject")
-    assert all(
-        item["id"] != rejected["id"] for item in repository.list_profile_items()
-    )
+    assert all(item["id"] != rejected["id"] for item in repository.list_profile_items())
     forgotten = repository.resolve_profile_item(
         item_id=rejected["id"],
         action="forget",

@@ -1,4 +1,4 @@
 interface:
   display_name: "MJTutor 雀魂牌谱教练"
   short_description: "用 Mortal 证据复盘雀魂半庄并维护可纠正的长期画像"
-  default_prompt: "Use $coach-mahjong-soul to review my Mahjong Soul hanchan and maintain my evidence-backed local coaching profile."
+  default_prompt: "使用 $coach-mahjong-soul 复盘我的雀魂四麻半庄，并维护有证据、可纠正的本地教学画像。"

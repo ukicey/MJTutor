@@ -234,7 +234,9 @@ def test_reach_accepted_updates_score_kyotaku_and_river_marker() -> None:
     assert hora_context["rivers"][0][0]["riichi_declaration"] is True
 
 
-def _review(entries: list[dict[str, Any]], events: list[dict[str, Any]]) -> ReviewDocument:
+def _review(
+    entries: list[dict[str, Any]], events: list[dict[str, Any]]
+) -> ReviewDocument:
     return ReviewDocument.from_json(
         {
             "player_id": 0,

@@ -5,8 +5,6 @@ import json
 from pathlib import Path
 from urllib.error import HTTPError
 
-from mjtutor.logs import LogMetadata
-from mjtutor.models import ReviewDocument
 from mjtutor.koromo_catalog import (
     KoromoCatalogClient,
     KoromoGame,
@@ -14,6 +12,8 @@ from mjtutor.koromo_catalog import (
     make_paipu_url,
     parse_koromo_game,
 )
+from mjtutor.logs import LogMetadata
+from mjtutor.models import ReviewDocument
 from mjtutor.service import CoachService
 from mjtutor.storage import ReviewRepository
 
@@ -25,7 +25,12 @@ def _raw_game(uuid: str = "260811-test") -> dict:
         "startTime": 1_786_500_000,
         "endTime": 1_786_503_600,
         "players": [
-            {"accountId": 20155424, "nickname": "Orangeese", "level": 10101, "score": 31200},
+            {
+                "accountId": 20155424,
+                "nickname": "Orangeese",
+                "level": 10101,
+                "score": 31200,
+            },
             {"accountId": 2, "nickname": "B", "level": 10101, "score": 18400},
             {"accountId": 3, "nickname": "C", "level": 10101, "score": 34100},
             {"accountId": 4, "nickname": "D", "level": 10101, "score": 16300},
@@ -99,7 +104,9 @@ def test_client_does_not_bypass_koromo_challenge() -> None:
 
 
 class FakeKoromoClient:
-    def __init__(self, games: list[KoromoGame] | None = None, error: Exception | None = None):
+    def __init__(
+        self, games: list[KoromoGame] | None = None, error: Exception | None = None
+    ):
         self.games = games or []
         self.error = error
         self.calls = 0
@@ -150,7 +157,9 @@ def test_sync_records_verification_required_and_serves_cache(tmp_path: Path) -> 
     assert listed["items"] == []
 
 
-def test_sync_marks_game_reviewed_when_review_was_imported_first(tmp_path: Path) -> None:
+def test_sync_marks_game_reviewed_when_review_was_imported_first(
+    tmp_path: Path,
+) -> None:
     repository = ReviewRepository(tmp_path / "coach.sqlite3")
     repository.bind_koromo_account(nickname="Orangeese", koromo_player_id=20155424)
     parsed = parse_koromo_game(_raw_game(), account_id=20155424)

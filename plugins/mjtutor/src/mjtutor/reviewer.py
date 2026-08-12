@@ -31,7 +31,9 @@ class ReviewerConfig:
 
     def status(self) -> dict[str, Any]:
         reviewer_path = _resolve_executable(self.reviewer_bin)
-        mortal_exe_ok = bool(self.mortal_exe and Path(self.mortal_exe).expanduser().is_file())
+        mortal_exe_ok = bool(
+            self.mortal_exe and Path(self.mortal_exe).expanduser().is_file()
+        )
         mortal_config_ok = bool(
             self.mortal_config and Path(self.mortal_config).expanduser().is_file()
         )
@@ -111,7 +113,8 @@ class MortalReviewer:
         if completed.returncode != 0:
             detail = completed.stderr.strip() or completed.stdout.strip()
             raise ReviewerError(
-                f"mjai-reviewer exited with code {completed.returncode}: {detail[-2000:]}"
+                "mjai-reviewer exited with code "
+                f"{completed.returncode}: {detail[-2000:]}"
             )
 
         try:
@@ -124,7 +127,9 @@ class MortalReviewer:
         )
 
 
-def load_review_file(path: str | Path, *, player_id: int | None = None) -> ReviewDocument:
+def load_review_file(
+    path: str | Path, *, player_id: int | None = None
+) -> ReviewDocument:
     source = Path(path).expanduser().resolve()
     if not source.is_file():
         raise ReviewerError(f"Review file does not exist: {source}")

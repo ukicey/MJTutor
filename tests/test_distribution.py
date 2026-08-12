@@ -2,21 +2,45 @@ from __future__ import annotations
 
 import json
 import os
+import tomllib
 from pathlib import Path
 
 import mjtutor
 from mjtutor.service import default_database_path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN_ROOT = ROOT / "plugins" / "mjtutor"
 
 
-def test_plugin_and_python_versions_match() -> None:
+def test_distribution_versions_match() -> None:
     manifest = json.loads(
         (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
     )
-    assert manifest["version"] == mjtutor.__version__
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    assert manifest["version"] == project["project"]["version"] == mjtutor.__version__
+
+
+def test_plugin_starter_prompts_fit_host_limits() -> None:
+    manifest = json.loads(
+        (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
+    prompts = manifest["interface"]["defaultPrompt"]
+    assert 1 <= len(prompts) <= 3
+    assert all(len(prompt) <= 128 for prompt in prompts)
+
+
+def test_example_environment_matches_runtime_defaults() -> None:
+    example = (ROOT / ".env.example").read_text(encoding="utf-8")
+    assert "~/.local/share/mjtutor" in example
+    assert "./data inside this project" not in example
+    assert "MJTUTOR_KOROMO_TOKEN" in example
+
+
+def test_mcp_server_reports_package_version(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("MJTUTOR_DATA_DIR", os.fspath(tmp_path))
+    from mjtutor import mcp_server
+
+    assert mcp_server.mcp.version == mjtutor.__version__
 
 
 def test_plugin_is_the_only_codex_runtime_surface() -> None:
@@ -32,9 +56,7 @@ def test_plugin_is_the_only_codex_runtime_surface() -> None:
 
 def test_marketplace_points_to_plugin() -> None:
     marketplace = json.loads(
-        (ROOT / ".agents" / "plugins" / "marketplace.json").read_text(
-            encoding="utf-8"
-        )
+        (ROOT / ".agents" / "plugins" / "marketplace.json").read_text(encoding="utf-8")
     )
     assert marketplace["name"] == "mjtutor"
     assert marketplace["plugins"][0]["source"] == {
@@ -64,9 +86,7 @@ def test_mcp_app_resource_is_packaged_and_registered() -> None:
     server = (PLUGIN_ROOT / "src" / "mjtutor" / "mcp_server.py").read_text(
         encoding="utf-8"
     )
-    app = (PLUGIN_ROOT / "assets" / "game-catalog.html").read_text(
-        encoding="utf-8"
-    )
+    app = (PLUGIN_ROOT / "assets" / "game-catalog.html").read_text(encoding="utf-8")
     assert 'CATALOG_URI = "ui://mjtutor/game-catalog.html"' in server
     assert "Apps()" in server
     assert "tools/call" in app

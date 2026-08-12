@@ -26,14 +26,16 @@ def reconstruct_decision_contexts(
     if not isinstance(player_id, int) or player_id not in range(4):
         return _unavailable_for_all(decisions, "Review is missing a valid player_id.")
     if not isinstance(mjai_log, list) or not mjai_log:
-        return _unavailable_for_all(decisions, "Review does not include mjai_log events.")
+        return _unavailable_for_all(
+            decisions, "Review does not include mjai_log events."
+        )
 
     round_events = _partition_round_events(mjai_log)
     grouped: dict[tuple[int, int], list[Decision]] = {}
     for decision in decisions:
-        grouped.setdefault((_round_index(decision.round_label), decision.honba), []).append(
-            decision
-        )
+        grouped.setdefault(
+            (_round_index(decision.round_label), decision.honba), []
+        ).append(decision)
 
     contexts: dict[str, dict[str, Any]] = {}
     for key, round_decisions in grouped.items():
@@ -41,7 +43,8 @@ def reconstruct_decision_contexts(
         if not events:
             for decision in round_decisions:
                 contexts[decision.decision_id] = _unavailable(
-                    f"Could not find mjai events for {decision.round_label}.{decision.honba}."
+                    "Could not find mjai events for "
+                    f"{decision.round_label}.{decision.honba}."
                 )
             continue
 
@@ -75,9 +78,7 @@ class _RoundState:
     scores: list[int]
     dora_markers: list[str]
     tiles_left: int = 70
-    rivers: list[list[dict[str, Any]]] = field(
-        default_factory=lambda: [[], [], [], []]
-    )
+    rivers: list[list[dict[str, Any]]] = field(default_factory=lambda: [[], [], [], []])
     melds: list[list[dict[str, Any]]] = field(default_factory=lambda: [[], [], [], []])
     riichi_states: list[str] = field(default_factory=lambda: ["none"] * 4)
     public_tile_counts: Counter[str] = field(default_factory=Counter)
@@ -95,7 +96,9 @@ class _RoundState:
             honba=int(event.get("honba", 0)),
             kyotaku=int(event.get("kyotaku", 0)),
             oya=int(event.get("oya", -1)),
-            scores=[int(score) for score in scores] if _is_four_item_list(scores) else [],
+            scores=[int(score) for score in scores]
+            if _is_four_item_list(scores)
+            else [],
             dora_markers=markers,
             public_tile_counts=counts,
         )
@@ -147,9 +150,12 @@ class _RoundState:
             for index in range(len(self.melds[actor]) - 1, -1, -1):
                 meld = self.melds[actor][index]
                 meld_tile = meld.get("pai")
-                if meld.get("type") == "pon" and isinstance(meld_tile, str) and isinstance(
-                    tile, str
-                ) and normalize_tile(meld_tile) == normalize_tile(tile):
+                if (
+                    meld.get("type") == "pon"
+                    and isinstance(meld_tile, str)
+                    and isinstance(tile, str)
+                    and normalize_tile(meld_tile) == normalize_tile(tile)
+                ):
                     if "target" not in upgraded and "target" in meld:
                         upgraded["target"] = meld["target"]
                     self.melds[actor][index] = upgraded
@@ -190,19 +196,29 @@ class _RoundState:
         hand = _tile_list(decision.hand_state.get("tehai"))
         visible_counts = self.public_tile_counts.copy()
         visible_counts.update(normalize_tile(tile) for tile in hand)
-        unknown_tiles = sorted(tile for tile in visible_counts if tile not in TILE_TYPES)
+        unknown_tiles = sorted(
+            tile for tile in visible_counts if tile not in TILE_TYPES
+        )
         overfull_tiles = {
-            tile: visible_counts[tile] for tile in TILE_TYPES if visible_counts[tile] > 4
+            tile: visible_counts[tile]
+            for tile in TILE_TYPES
+            if visible_counts[tile] > 4
         }
         warnings: list[str] = []
         if not hand:
-            warnings.append("Decision state does not include the player's concealed hand.")
+            warnings.append(
+                "Decision state does not include the player's concealed hand."
+            )
         if unknown_tiles:
             warnings.append(f"Unknown tile encodings: {', '.join(unknown_tiles)}")
         if overfull_tiles:
-            warnings.append("Visible tile counts exceed four for at least one tile type.")
+            warnings.append(
+                "Visible tile counts exceed four for at least one tile type."
+            )
         state_fuuros = decision.hand_state.get("fuuros")
-        if isinstance(state_fuuros, list) and len(state_fuuros) != len(self.melds[player_id]):
+        if isinstance(state_fuuros, list) and len(state_fuuros) != len(
+            self.melds[player_id]
+        ):
             warnings.append("Replayed meld count does not match the decision state.")
 
         visible = {tile: int(visible_counts[tile]) for tile in TILE_TYPES}
@@ -215,7 +231,9 @@ class _RoundState:
                 "boundary": boundary,
                 "decision_event_index": decision_event_index,
                 "context_after_event_index": context_after_event_index,
-                "trigger_event": _public_event(trigger_event) if trigger_event else None,
+                "trigger_event": _public_event(trigger_event)
+                if trigger_event
+                else None,
             },
             "round": {
                 "label": decision.round_label,
@@ -331,7 +349,11 @@ def _start_event_key(event: dict[str, Any]) -> tuple[int, int] | None:
     bakaze = event.get("bakaze")
     kyoku = event.get("kyoku")
     honba = event.get("honba", 0)
-    if bakaze not in WIND_OFFSETS or not isinstance(kyoku, int) or not isinstance(honba, int):
+    if (
+        bakaze not in WIND_OFFSETS
+        or not isinstance(kyoku, int)
+        or not isinstance(honba, int)
+    ):
         return None
     return WIND_OFFSETS[bakaze] + kyoku - 1, honba
 
@@ -352,8 +374,12 @@ def _action_matches_event(action: dict[str, Any], event: dict[str, Any]) -> bool
         if key in action and action[key] != event.get(key):
             return False
     if "consumed" in action:
-        action_tiles = sorted(normalize_tile(tile) for tile in _tile_list(action["consumed"]))
-        event_tiles = sorted(normalize_tile(tile) for tile in _tile_list(event.get("consumed")))
+        action_tiles = sorted(
+            normalize_tile(tile) for tile in _tile_list(action["consumed"])
+        )
+        event_tiles = sorted(
+            normalize_tile(tile) for tile in _tile_list(event.get("consumed"))
+        )
         if action_tiles != event_tiles:
             return False
     return True
@@ -364,9 +390,10 @@ def _trigger_matches_decision(
 ) -> bool:
     event_type = event.get("type")
     expected_type = "kakan" if decision.at_opponent_kakan else "dahai"
-    if event_type != expected_type:
-        if not (decision.last_actor == player_id and event_type == "tsumo"):
-            return False
+    if event_type != expected_type and not (
+        decision.last_actor == player_id and event_type == "tsumo"
+    ):
+        return False
     if decision.last_actor is not None and event.get("actor") != decision.last_actor:
         return False
     event_tile = event.get("pai")
@@ -396,7 +423,11 @@ def _public_meld(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def _tile_list(value: Any) -> list[str]:
-    return [tile for tile in value if isinstance(tile, str)] if isinstance(value, list) else []
+    return (
+        [tile for tile in value if isinstance(tile, str)]
+        if isinstance(value, list)
+        else []
+    )
 
 
 def _is_player_id(value: Any) -> bool:

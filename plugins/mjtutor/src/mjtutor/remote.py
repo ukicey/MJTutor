@@ -46,7 +46,8 @@ class MortalWebProvider:
             "public_api": False,
             "notice": (
                 "Mortal Web uses Cloudflare Turnstile. MJTutor can prefill the log URL "
-                "and import the completed report, but cannot submit headlessly or bypass verification."
+                "and import the completed report, but cannot submit headlessly or "
+                "bypass verification."
             ),
         }
 
@@ -60,11 +61,11 @@ class MortalWebProvider:
     ) -> dict[str, Any]:
         normalized_log_url = validate_majsoul_url(log_url)
         if language not in LANGUAGE_PATHS:
-            raise ReviewerError(
-                f"language must be one of: {', '.join(LANGUAGE_PATHS)}"
-            )
+            raise ReviewerError(f"language must be one of: {', '.join(LANGUAGE_PATHS)}")
         if model_tag not in MODEL_TAGS:
-            raise ReviewerError(f"model_tag must be one of: {', '.join(sorted(MODEL_TAGS))}")
+            raise ReviewerError(
+                f"model_tag must be one of: {', '.join(sorted(MODEL_TAGS))}"
+            )
 
         query = urlencode({"url": normalized_log_url})
         submission_url = urlunparse(
@@ -83,14 +84,16 @@ class MortalWebProvider:
                 "kyokus": kyokus,
             },
             "next_step": (
-                "Open submission_url, confirm the requested settings, complete Turnstile, "
-                "and submit. Then pass the generated /report/ JSON or HTML URL to "
-                "import_mortal_web_report."
+                "Open submission_url, confirm the requested settings, complete "
+                "Turnstile, and submit. Then pass the generated /report/ JSON or "
+                "HTML URL to import_mortal_web_report."
             ),
             "automatic_submission": False,
         }
 
-    def fetch_report(self, report_url: str, *, source_log_url: str) -> RemoteReviewResult:
+    def fetch_report(
+        self, report_url: str, *, source_log_url: str
+    ) -> RemoteReviewResult:
         normalized_source = validate_majsoul_url(source_log_url)
         report_json_url = normalize_report_json_url(report_url)
         request = Request(

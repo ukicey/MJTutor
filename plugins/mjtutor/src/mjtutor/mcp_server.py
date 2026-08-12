@@ -7,6 +7,7 @@ from mcp import types
 from mcp.server import MCPServer
 from mcp.server.apps import Apps
 
+from . import __version__
 from .service import CoachService
 
 service = CoachService()
@@ -20,7 +21,8 @@ CATALOG_URI = "ui://mjtutor/game-catalog.html"
     title="Open MJTutor game catalog",
     description=(
         "Open the interactive local Koromo game catalog. Use this when the user wants "
-        "to browse, filter, sync, or choose a ranked game without listing every game in chat."
+        "to browse, filter, sync, or choose a ranked game without listing every "
+        "game in chat."
     ),
 )
 def open_game_catalog(
@@ -43,7 +45,7 @@ apps.add_html_resource(
     prefers_border=False,
 )
 
-mcp = MCPServer("MJTutor", extensions=[apps])
+mcp = MCPServer("MJTutor", version=__version__, extensions=[apps])
 
 
 @mcp.tool(meta={"ui": {"visibility": ["app"]}})
@@ -82,7 +84,7 @@ def check_setup() -> dict[str, Any]:
 
 @mcp.tool()
 def inspect_majsoul_log(log_path: str) -> dict[str, Any]:
-    """Validate a local Mahjong Soul four-player hanchan export without running Mortal."""
+    """Validate a local four-player hanchan export without running Mortal."""
     return service.inspect_log(log_path)
 
 
@@ -157,9 +159,10 @@ def bind_koromo_account(
 ) -> dict[str, Any]:
     """Bind or refresh one of the local user's accounts after confirmation.
 
-    nickname is display and search history. koromo_player_id is the stable account_id from
-    the user's Koromo URL. Never select a same-named result without user confirmation.
-    Matching existing paipu reviews receive this account as provenance automatically.
+    nickname is display and search history. koromo_player_id is the stable
+    account_id from the user's Koromo URL. Never select a same-named result
+    without user confirmation. Matching existing paipu reviews receive this
+    account as provenance automatically.
     """
     return service.bind_koromo_account(
         nickname=nickname,
@@ -251,7 +254,7 @@ def get_decision(
     decision_id: str,
     candidate_limit: int = 8,
 ) -> dict[str, Any]:
-    """Return one decision with Mortal evidence and reconstructed public table context."""
+    """Return a decision with Mortal evidence and reconstructed table context."""
     return service.decision(
         review_id,
         decision_id,
@@ -335,9 +338,9 @@ def record_profile_memory(
 ) -> dict[str, Any]:
     """Record a confirmed long-term memory from an explicit user statement.
 
-    Do not call this for silent inference or ordinary Mortal disagreement. Suitable kinds
-    include mistake, style_preference, goal, strength, teaching_preference, question,
-    understood, and pattern.
+    Do not call this for silent inference or ordinary Mortal disagreement.
+    Suitable kinds include mistake, style_preference, goal, strength,
+    teaching_preference, question, understood, and pattern.
     """
     return service.record_profile_memory(
         kind=kind,
