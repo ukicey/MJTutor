@@ -2,10 +2,19 @@ from __future__ import annotations
 
 import hashlib
 import os
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 from .errors import CoachError, ReviewerError
+from .koromo_catalog import (
+    DEFAULT_INITIAL_LOOKBACK_DAYS,
+    DEFAULT_SYNC_INTERVAL_MINUTES,
+    KOROMO_WEB_URL,
+    KoromoAccessError,
+    KoromoCatalogClient,
+    KoromoVerificationRequired,
+)
 from .logs import LogMetadata, inspect_tenhou_v6_log
 from .remote import MortalWebProvider
 from .reviewer import MortalReviewer, ReviewerConfig, load_review_file
@@ -29,10 +38,12 @@ class CoachService:
         repository: ReviewRepository | None = None,
         reviewer: MortalReviewer | None = None,
         web_provider: MortalWebProvider | None = None,
+        koromo_client: KoromoCatalogClient | None = None,
     ) -> None:
         self.repository = repository or ReviewRepository(default_database_path())
         self.reviewer = reviewer or MortalReviewer(ReviewerConfig.from_env())
         self.web_provider = web_provider or MortalWebProvider()
+        self.koromo_client = koromo_client or KoromoCatalogClient()
 
     def check_setup(self) -> dict[str, Any]:
         return {
@@ -42,10 +53,10 @@ class CoachService:
                 "local_mortal": self.reviewer.config.status(),
                 "mortal_web": self.web_provider.status(),
                 "koromo_catalog": {
+                    **self.koromo_client.status(),
                     "selected_source": True,
                     "identity": "one local profile with confirmed Koromo accounts",
-                    "coverage": "four-player Gold, Jade, and Throne ranked rooms",
-                    "current_stage": "local account binding ready; incremental game sync pending",
+                    "current_stage": "local incremental catalog and MCP App available",
                     "requires_majsoul_login": False,
                 },
             },
@@ -156,6 +167,210 @@ class CoachService:
             nickname=nickname,
             koromo_player_id=koromo_player_id,
         )
+
+    def sync_koromo_games(
+        self,
+        *,
+        account_id: int | None = None,
+        force: bool = False,
+        lookback_days: int = DEFAULT_INITIAL_LOOKBACK_DAYS,
+        max_pages: int = 10,
+    ) -> dict[str, Any]:
+        identity = self.repository.get_local_identity()
+        accounts = identity["accounts"]
+        if account_id is not None:
+            accounts = [item for item in accounts if int(item["account_id"]) == account_id]
+            if not accounts:
+                raise CoachError(f"Koromo account is not bound: {account_id}")
+        lookback_days = max(1, min(int(lookback_days), 3650))
+        max_pages = max(1, min(int(max_pages), 50))
+        results = [
+            self._sync_koromo_account(
+                account_id=int(account["account_id"]),
+                force=force,
+                lookback_days=lookback_days,
+                max_pages=max_pages,
+            )
+            for account in accounts
+        ]
+        return {
+            "accounts": results,
+            "automatic_policy": (
+                "Opening the catalog may trigger an incremental sync after the minimum "
+                "interval. No resident background process is installed."
+            ),
+            "external_analysis_started": False,
+        }
+
+    def _sync_koromo_account(
+        self,
+        *,
+        account_id: int,
+        force: bool,
+        lookback_days: int,
+        max_pages: int,
+    ) -> dict[str, Any]:
+        current = self.repository.get_koromo_sync_status(account_id=account_id)[
+            "accounts"
+        ][0]
+        last_attempt = _parse_timestamp(current.get("last_attempt_at"))
+        now = datetime.now(UTC)
+        if (
+            not force
+            and last_attempt is not None
+            and now - last_attempt < timedelta(minutes=DEFAULT_SYNC_INTERVAL_MINUTES)
+        ):
+            return {
+                **current,
+                "skipped": True,
+                "skip_reason": "minimum_sync_interval",
+            }
+
+        latest = current.get("latest_game_start")
+        if latest is None:
+            start_ms = int((now - timedelta(days=lookback_days)).timestamp() * 1000)
+        else:
+            # Repeat a week so delayed Koromo records are not missed.
+            start_ms = max(0, (int(latest) - 7 * 24 * 60 * 60) * 1000)
+        end_ms = int(now.timestamp() * 1000)
+        fetched: dict[str, dict[str, Any]] = {}
+        try:
+            for _ in range(max_pages):
+                page = self.koromo_client.fetch_games(
+                    account_id=account_id,
+                    start_ms=start_ms,
+                    end_ms=end_ms,
+                    limit=100,
+                )
+                for game in page:
+                    fetched[game.uuid] = game.as_dict(account_id=account_id)
+                if len(page) < 100:
+                    break
+                oldest_start_ms = min(game.start_time for game in page) * 1000
+                if oldest_start_ms <= start_ms:
+                    break
+                end_ms = oldest_start_ms - 1
+        except KoromoVerificationRequired as error:
+            state = self.repository.record_koromo_sync(
+                account_id=account_id,
+                status="verification_required",
+                success=False,
+                error=str(error),
+            )["accounts"][0]
+            return {
+                **state,
+                "skipped": False,
+                "fetched": 0,
+                "inserted": 0,
+                "updated": 0,
+                "koromo_web_url": KOROMO_WEB_URL,
+            }
+        except KoromoAccessError as error:
+            state = self.repository.record_koromo_sync(
+                account_id=account_id,
+                status="unavailable",
+                success=False,
+                error=str(error),
+            )["accounts"][0]
+            return {
+                **state,
+                "skipped": False,
+                "fetched": 0,
+                "inserted": 0,
+                "updated": 0,
+                "koromo_web_url": KOROMO_WEB_URL,
+            }
+
+        saved = self.repository.save_koromo_games(
+            account_id=account_id,
+            games=list(fetched.values()),
+        )
+        latest_game_start = max(
+            (int(game["start_time"]) for game in fetched.values()),
+            default=None,
+        )
+        state = self.repository.record_koromo_sync(
+            account_id=account_id,
+            status="ok",
+            success=True,
+            latest_game_start=latest_game_start,
+        )["accounts"][0]
+        return {
+            **state,
+            "skipped": False,
+            "fetched": len(fetched),
+            **saved,
+        }
+
+    def list_koromo_games(
+        self,
+        *,
+        account_id: int | None = None,
+        rank: int | None = None,
+        reviewed: bool | None = None,
+        start_time: int | None = None,
+        end_time: int | None = None,
+        limit: int = 20,
+        offset: int = 0,
+        auto_sync: bool = False,
+    ) -> dict[str, Any]:
+        sync = self.sync_koromo_games(account_id=account_id) if auto_sync else None
+        result = self.repository.list_koromo_games(
+            account_id=account_id,
+            rank=rank,
+            reviewed=reviewed,
+            start_time=start_time,
+            end_time=end_time,
+            limit=limit,
+            offset=offset,
+        )
+        result["sync"] = sync
+        result["catalog_notice"] = (
+            "Koromo is third-party, delayed, and potentially incomplete. Only cached "
+            "public ranked-game metadata is returned; no Mortal analysis is started."
+        )
+        return result
+
+    def koromo_sync_status(self, *, account_id: int | None = None) -> dict[str, Any]:
+        return {
+            **self.repository.get_koromo_sync_status(account_id=account_id),
+            "provider": self.koromo_client.status(),
+            "minimum_sync_interval_minutes": DEFAULT_SYNC_INTERVAL_MINUTES,
+        }
+
+    def prepare_selected_game_review(self, uuid: str) -> dict[str, Any]:
+        game = self.repository.get_koromo_game(uuid.strip())
+        compact_game = {
+            "uuid": game["uuid"],
+            "account_id": game["account_id"],
+            "account_nickname": game["account_nickname"],
+            "mode_label": game["mode_label"],
+            "start_time": game["start_time"],
+            "player_rank": game["player_rank"],
+            "player_score": game["player_score"],
+            "paipu_url": game["paipu_url"],
+            "reviewed": game["reviewed"],
+            "review_id": game["review_id"],
+        }
+        if game["reviewed"]:
+            return {
+                "status": "already_reviewed",
+                "game": compact_game,
+                "review_id": game["review_id"],
+                "mortal_web": None,
+                "external_analysis_started": False,
+            }
+        prepared = self.web_provider.prepare(
+            str(game["paipu_url"]),
+            language="zh-CN",
+            model_tag="4.1b",
+        )
+        return {
+            "status": "awaiting_human_verification",
+            "game": compact_game,
+            "mortal_web": prepared,
+            "external_analysis_started": False,
+        }
 
     def list_reviews(self, *, limit: int = 20) -> list[dict[str, Any]]:
         return self.repository.list_reviews(limit=limit)
@@ -355,6 +570,15 @@ def _validate_profile_text(
     if not category or not statement:
         raise CoachError("category and statement must not be empty")
     return kind, category, statement
+
+
+def _parse_timestamp(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
 
 
 def _validate_confidence(value: float) -> float:

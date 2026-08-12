@@ -8,11 +8,11 @@ from pathlib import Path
 from typing import Any
 
 from .errors import CoachError, ProfileItemNotFoundError, ReviewNotFoundError
-from .koromo import extract_koromo_player_id
+from .koromo import extract_koromo_player_id, extract_paipu_uuid
 from .logs import LogMetadata
 from .models import ReviewDocument
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 LOCAL_PROFILE_ID = 1
 
 SCHEMA = """
@@ -40,6 +40,34 @@ CREATE TABLE IF NOT EXISTS account_nicknames (
     last_seen_at TEXT NOT NULL,
     is_current INTEGER NOT NULL DEFAULT 1,
     PRIMARY KEY (account_id, nickname)
+);
+
+CREATE TABLE IF NOT EXISTS koromo_games (
+    uuid TEXT PRIMARY KEY,
+    account_id INTEGER NOT NULL
+        REFERENCES majsoul_accounts(account_id) ON DELETE CASCADE,
+    mode_id INTEGER NOT NULL,
+    mode_label TEXT NOT NULL,
+    start_time INTEGER NOT NULL,
+    end_time INTEGER NOT NULL,
+    players_json TEXT NOT NULL,
+    player_rank INTEGER NOT NULL,
+    player_score INTEGER NOT NULL,
+    paipu_url TEXT NOT NULL,
+    first_seen_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    review_id TEXT REFERENCES reviews(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS koromo_sync_state (
+    account_id INTEGER PRIMARY KEY
+        REFERENCES majsoul_accounts(account_id) ON DELETE CASCADE,
+    last_attempt_at TEXT,
+    last_success_at TEXT,
+    latest_game_start INTEGER,
+    status TEXT NOT NULL DEFAULT 'never',
+    last_error TEXT,
+    cached_game_count INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS reviews (
@@ -115,6 +143,12 @@ CREATE TABLE IF NOT EXISTS profile_evidence (
 
 CREATE INDEX IF NOT EXISTS idx_reviews_account
 ON reviews(account_id);
+
+CREATE INDEX IF NOT EXISTS idx_koromo_games_account_start
+ON koromo_games(account_id, start_time DESC);
+
+CREATE INDEX IF NOT EXISTS idx_koromo_games_review
+ON koromo_games(review_id);
 
 CREATE INDEX IF NOT EXISTS idx_notes_review_decision
 ON coaching_notes(review_id, decision_id);
@@ -269,6 +303,8 @@ class ReviewRepository:
             "profile_items",
             "decision_observations",
             "coaching_notes",
+            "koromo_sync_state",
+            "koromo_games",
             "reviews",
             "account_nicknames",
             "majsoul_accounts",
@@ -641,6 +677,255 @@ class ReviewRepository:
             "accounts": account_results,
         }
 
+    def save_koromo_games(
+        self,
+        *,
+        account_id: int,
+        games: list[dict[str, Any]],
+    ) -> dict[str, int]:
+        now = _now()
+        inserted = 0
+        updated = 0
+        with closing(self._connect()) as connection:
+            if connection.execute(
+                "SELECT 1 FROM majsoul_accounts WHERE account_id = ?",
+                (account_id,),
+            ).fetchone() is None:
+                raise CoachError(f"Koromo account is not bound: {account_id}")
+            reviews_by_uuid = {
+                paipu_uuid: str(row["id"])
+                for row in connection.execute(
+                    "SELECT id, source_path FROM reviews WHERE account_id = ?",
+                    (account_id,),
+                ).fetchall()
+                if (paipu_uuid := extract_paipu_uuid(str(row["source_path"])))
+            }
+            for game in games:
+                uuid = str(game["uuid"])
+                existed = connection.execute(
+                    "SELECT 1 FROM koromo_games WHERE uuid = ?",
+                    (uuid,),
+                ).fetchone()
+                connection.execute(
+                    """
+                    INSERT INTO koromo_games (
+                        uuid, account_id, mode_id, mode_label, start_time, end_time,
+                        players_json, player_rank, player_score, paipu_url,
+                        first_seen_at, last_seen_at, review_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(uuid) DO UPDATE SET
+                        account_id = excluded.account_id,
+                        mode_id = excluded.mode_id,
+                        mode_label = excluded.mode_label,
+                        start_time = excluded.start_time,
+                        end_time = excluded.end_time,
+                        players_json = excluded.players_json,
+                        player_rank = excluded.player_rank,
+                        player_score = excluded.player_score,
+                        paipu_url = excluded.paipu_url,
+                        last_seen_at = excluded.last_seen_at,
+                        review_id = COALESCE(excluded.review_id, koromo_games.review_id)
+                    """,
+                    (
+                        uuid,
+                        account_id,
+                        int(game["mode_id"]),
+                        str(game["mode_label"]),
+                        int(game["start_time"]),
+                        int(game["end_time"]),
+                        json.dumps(
+                            game["players"], ensure_ascii=False, separators=(",", ":")
+                        ),
+                        int(game["player_rank"]),
+                        int(game["player_score"]),
+                        str(game["paipu_url"]),
+                        now,
+                        now,
+                        reviews_by_uuid.get(uuid),
+                    ),
+                )
+                inserted += existed is None
+                updated += existed is not None
+            connection.commit()
+        return {"inserted": inserted, "updated": updated}
+
+    def record_koromo_sync(
+        self,
+        *,
+        account_id: int,
+        status: str,
+        success: bool,
+        latest_game_start: int | None = None,
+        error: str | None = None,
+    ) -> dict[str, Any]:
+        now = _now()
+        with closing(self._connect()) as connection:
+            current = connection.execute(
+                "SELECT last_success_at, latest_game_start FROM koromo_sync_state WHERE account_id = ?",
+                (account_id,),
+            ).fetchone()
+            previous_latest = (
+                int(current["latest_game_start"])
+                if current is not None and current["latest_game_start"] is not None
+                else None
+            )
+            next_latest = max(
+                value
+                for value in (previous_latest, latest_game_start)
+                if value is not None
+            ) if previous_latest is not None or latest_game_start is not None else None
+            previous_success = (
+                str(current["last_success_at"])
+                if current is not None and current["last_success_at"] is not None
+                else None
+            )
+            count = int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM koromo_games WHERE account_id = ?",
+                    (account_id,),
+                ).fetchone()[0]
+            )
+            connection.execute(
+                """
+                INSERT INTO koromo_sync_state (
+                    account_id, last_attempt_at, last_success_at, latest_game_start,
+                    status, last_error, cached_game_count
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(account_id) DO UPDATE SET
+                    last_attempt_at = excluded.last_attempt_at,
+                    last_success_at = excluded.last_success_at,
+                    latest_game_start = excluded.latest_game_start,
+                    status = excluded.status,
+                    last_error = excluded.last_error,
+                    cached_game_count = excluded.cached_game_count
+                """,
+                (
+                    account_id,
+                    now,
+                    now if success else previous_success,
+                    next_latest,
+                    status,
+                    error,
+                    count,
+                ),
+            )
+            connection.commit()
+        return self.get_koromo_sync_status(account_id=account_id)
+
+    def get_koromo_sync_status(
+        self,
+        *,
+        account_id: int | None = None,
+    ) -> dict[str, Any]:
+        identity = self.get_local_identity()
+        accounts = identity["accounts"]
+        if account_id is not None:
+            accounts = [item for item in accounts if int(item["account_id"]) == account_id]
+            if not accounts:
+                raise CoachError(f"Koromo account is not bound: {account_id}")
+        with closing(self._connect()) as connection:
+            rows = connection.execute(
+                "SELECT * FROM koromo_sync_state ORDER BY account_id"
+            ).fetchall()
+        states = {int(row["account_id"]): dict(row) for row in rows}
+        results = []
+        for account in accounts:
+            item = {
+                "account_id": int(account["account_id"]),
+                "nickname": str(account["nickname"]),
+                "last_attempt_at": None,
+                "last_success_at": None,
+                "latest_game_start": None,
+                "status": "never",
+                "last_error": None,
+                "cached_game_count": 0,
+            }
+            item.update(states.get(item["account_id"], {}))
+            results.append(item)
+        return {"accounts": results}
+
+    def list_koromo_games(
+        self,
+        *,
+        account_id: int | None = None,
+        rank: int | None = None,
+        reviewed: bool | None = None,
+        start_time: int | None = None,
+        end_time: int | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        conditions: list[str] = []
+        parameters: list[Any] = []
+        if account_id is not None:
+            conditions.append("g.account_id = ?")
+            parameters.append(account_id)
+        if rank is not None:
+            if rank not in range(1, 5):
+                raise CoachError("rank must be within 1-4")
+            conditions.append("g.player_rank = ?")
+            parameters.append(rank)
+        if reviewed is not None:
+            conditions.append("g.review_id IS NOT NULL" if reviewed else "g.review_id IS NULL")
+        if start_time is not None:
+            conditions.append("g.start_time >= ?")
+            parameters.append(start_time)
+        if end_time is not None:
+            conditions.append("g.start_time <= ?")
+            parameters.append(end_time)
+        where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        page_limit = max(1, min(int(limit), 100))
+        page_offset = max(0, int(offset))
+        with closing(self._connect()) as connection:
+            total = int(
+                connection.execute(
+                    f"SELECT COUNT(*) FROM koromo_games AS g {where}",
+                    parameters,
+                ).fetchone()[0]
+            )
+            rows = connection.execute(
+                f"""
+                SELECT g.*, a.nickname AS account_nickname
+                FROM koromo_games AS g
+                JOIN majsoul_accounts AS a ON a.account_id = g.account_id
+                {where}
+                ORDER BY g.start_time DESC, g.uuid
+                LIMIT ? OFFSET ?
+                """,
+                (*parameters, page_limit, page_offset),
+            ).fetchall()
+        items = []
+        for row in rows:
+            item = dict(row)
+            item["players"] = json.loads(item.pop("players_json"))
+            item["reviewed"] = item["review_id"] is not None
+            items.append(item)
+        return {
+            "items": items,
+            "total": total,
+            "limit": page_limit,
+            "offset": page_offset,
+            "has_more": page_offset + len(items) < total,
+        }
+
+    def get_koromo_game(self, uuid: str) -> dict[str, Any]:
+        with closing(self._connect()) as connection:
+            row = connection.execute(
+                """
+                SELECT g.*, a.nickname AS account_nickname
+                FROM koromo_games AS g
+                JOIN majsoul_accounts AS a ON a.account_id = g.account_id
+                WHERE g.uuid = ?
+                """,
+                (uuid,),
+            ).fetchone()
+        if row is None:
+            raise CoachError(f"Koromo game is not cached: {uuid}")
+        item = dict(row)
+        item["players"] = json.loads(item.pop("players_json"))
+        item["reviewed"] = item["review_id"] is not None
+        return item
+
     def save_review(
         self,
         *,
@@ -694,6 +979,14 @@ class ReviewRepository:
                 else None
             )
             connection.commit()
+        paipu_uuid = extract_paipu_uuid(metadata.path)
+        if paipu_uuid:
+            with closing(self._connect()) as connection:
+                connection.execute(
+                    "UPDATE koromo_games SET review_id = ? WHERE uuid = ?",
+                    (review_id, paipu_uuid),
+                )
+                connection.commit()
         self._index_review_observations(review_id=review_id, review=review)
         return account_id
 

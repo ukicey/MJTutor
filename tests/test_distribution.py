@@ -27,6 +27,7 @@ def test_plugin_is_the_only_codex_runtime_surface() -> None:
     )
     assert (PLUGIN_ROOT / "skills" / "coach-mahjong-soul" / "SKILL.md").is_file()
     assert (PLUGIN_ROOT / ".mcp.json").is_file()
+    assert (PLUGIN_ROOT / "assets" / "game-catalog.html").is_file()
 
 
 def test_marketplace_points_to_plugin() -> None:
@@ -57,3 +58,41 @@ def test_launcher_uses_uv_and_external_data_directory() -> None:
     assert "MJTUTOR_DATA_DIR" in launcher
     assert '--with "mcp>=2.0,<3"' in launcher
     assert "--isolated" in launcher
+
+
+def test_mcp_app_resource_is_packaged_and_registered() -> None:
+    server = (PLUGIN_ROOT / "src" / "mjtutor" / "mcp_server.py").read_text(
+        encoding="utf-8"
+    )
+    app = (PLUGIN_ROOT / "assets" / "game-catalog.html").read_text(
+        encoding="utf-8"
+    )
+    assert 'CATALOG_URI = "ui://mjtutor/game-catalog.html"' in server
+    assert "Apps()" in server
+    assert "tools/call" in app
+    assert "query_game_catalog" in app
+    assert "sendFollowUpMessage" in app
+
+
+def test_catalog_tool_keeps_game_rows_out_of_model_content(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("MJTUTOR_DATA_DIR", str(tmp_path))
+    from mjtutor import mcp_server
+
+    result = mcp_server._catalog_tool_result(
+        {
+            "items": [{"uuid": "private-game-row"}],
+            "total": 1,
+            "limit": 20,
+            "offset": 0,
+            "has_more": False,
+            "sync_status": {"accounts": []},
+            "catalog_notice": "notice",
+        }
+    )
+
+    assert "items" not in result.structured_content
+    assert result.meta["mjtutor/catalog"]["items"][0]["uuid"] == "private-game-row"
+    assert "private-game-row" not in result.content[0].text

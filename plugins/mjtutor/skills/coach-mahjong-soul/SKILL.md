@@ -22,7 +22,7 @@ In development/test mode, stop after confirming the requested workflow outcome o
 ## Review Workflow
 
 1. Call `check_setup` before the first analysis in a task. Report missing local components plainly.
-2. For a local export, call `inspect_majsoul_log` and accept only four-player hanchan logs. For a paipu URL, call `prepare_mortal_web_review`.
+2. For a local export, call `inspect_majsoul_log` and accept only four-player hanchan logs. For a paipu URL, call `prepare_mortal_web_review`. When the user wants to browse or choose from ranked-game history, call `open_game_catalog` instead of narrating a long list in chat.
 3. For Mortal Web, open the returned submission URL in the user's selected browser. Ask the user to complete Turnstile; never bypass, outsource, or automate it. After submission, call `import_mortal_web_report` with the generated report URL.
 4. For local Mortal, ask for or infer the East-1 seat only when it is not already known, then call `review_majsoul_hanchan`. Never choose the target seat from a nickname alone.
 5. Begin with at most three high-value disagreements from `get_review_summary`.
@@ -36,6 +36,10 @@ In development/test mode, stop after confirming the requested workflow outcome o
 - Treat one MJTutor installation as one local human profile. Do not ask for, create, or route by a user key. The local human may bind more than one Mahjong Soul account.
 - Use Koromo as MJTutor's ranked-game catalog and stable account source. Display each account as nickname plus Koromo `account_id`; nicknames are neither unique nor stable.
 - Call `bind_koromo_account` only after the user confirms the correct Koromo search result. Never claim a same-named result automatically.
+- Use `open_game_catalog` for routine browsing, filtering, syncing, and selection. Use `list_koromo_games` only when the conversation needs a compact page of metadata.
+- Opening the catalog may call `sync_koromo_games` after a minimum interval. This is opportunistic incremental sync, not a resident background process. Manual refresh may use `force=true`.
+- A selected game only calls `prepare_selected_game_review`; it does not submit to Mortal or start analysis. Continue to require the user's Turnstile step.
+- If sync reports `verification_required`, keep serving the local cache and explain that Koromo currently requires its browser challenge or a site-owner access key. Never solve, scrape around, or bypass that gate.
 - A Mahjong Soul paipu viewer suffix may add account provenance when it decodes to a confirmed Koromo `account_id`. A review without account provenance still belongs to the local profile and needs no player binding.
 - Koromo is a third-party, delayed, potentially incomplete catalog. Its Gold, Jade, and Throne ranked coverage does not prove that missing games did not occur.
 
@@ -80,5 +84,5 @@ Read [references/coaching-policy.md](references/coaching-policy.md) before produ
 - Support four-player hanchan reviews from tenhou.net/6-compatible exports or Mortal Web paipu links.
 - Do not claim that the log validator can always distinguish ranked and friendly rooms.
 - Treat Mortal Web as a human-verified remote provider, not a public API. Do not claim headless submission.
-- Do not claim GUI, live-game assistance, or automatic Mahjong Soul login.
+- The game catalog is an MCP App rendered by compatible hosts. Keep all catalog tools usable without its UI and do not claim automatic Mahjong Soul login or live-game assistance.
 - Do not install or download Mortal weights without explicit user approval.

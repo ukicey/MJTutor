@@ -1,13 +1,77 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
+from mcp import types
 from mcp.server import MCPServer
+from mcp.server.apps import Apps
 
 from .service import CoachService
 
-mcp = MCPServer("MJTutor")
 service = CoachService()
+apps = Apps()
+CATALOG_URI = "ui://mjtutor/game-catalog.html"
+
+
+@apps.tool(
+    resource_uri=CATALOG_URI,
+    visibility=["model", "app"],
+    title="Open MJTutor game catalog",
+    description=(
+        "Open the interactive local Koromo game catalog. Use this when the user wants "
+        "to browse, filter, sync, or choose a ranked game without listing every game in chat."
+    ),
+)
+def open_game_catalog(
+    auto_sync: bool = True,
+    limit: int = 20,
+) -> types.CallToolResult:
+    result = service.list_koromo_games(limit=limit, auto_sync=auto_sync)
+    result["sync_status"] = service.koromo_sync_status()
+    return _catalog_tool_result(result)
+
+
+apps.add_html_resource(
+    CATALOG_URI,
+    (Path(__file__).resolve().parents[2] / "assets" / "game-catalog.html").read_text(
+        encoding="utf-8"
+    ),
+    name="MJTutor game catalog",
+    title="MJTutor 牌局目录",
+    description="Browse, filter, sync, and choose locally cached Koromo games.",
+    prefers_border=False,
+)
+
+mcp = MCPServer("MJTutor", extensions=[apps])
+
+
+@mcp.tool(meta={"ui": {"visibility": ["app"]}})
+def query_game_catalog(
+    account_id: int | None = None,
+    rank: int | None = None,
+    reviewed: bool | None = None,
+    start_time: int | None = None,
+    end_time: int | None = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> types.CallToolResult:
+    """Return a private catalog page to the MJTutor App.
+
+    Game rows are delivered in tool-result metadata so browsing does not add the page
+    contents to the model transcript. Conversation clients should use list_koromo_games.
+    """
+    result = service.list_koromo_games(
+        account_id=account_id,
+        rank=rank,
+        reviewed=reviewed,
+        start_time=start_time,
+        end_time=end_time,
+        limit=limit,
+        offset=offset,
+    )
+    result["sync_status"] = service.koromo_sync_status()
+    return _catalog_tool_result(result)
 
 
 @mcp.tool()
@@ -101,6 +165,72 @@ def bind_koromo_account(
         nickname=nickname,
         koromo_player_id=koromo_player_id,
     )
+
+
+@mcp.tool(meta={"ui": {"visibility": ["model", "app"]}})
+def sync_koromo_games(
+    account_id: int | None = None,
+    force: bool = False,
+    lookback_days: int = 365,
+    max_pages: int = 10,
+) -> dict[str, Any]:
+    """Incrementally sync bound-account hanchan metadata from Koromo into SQLite.
+
+    This does not analyze games with Mortal. Koromo may require its browser challenge or
+    an access key; MJTutor records that state and continues serving cached games.
+    """
+    return service.sync_koromo_games(
+        account_id=account_id,
+        force=force,
+        lookback_days=lookback_days,
+        max_pages=max_pages,
+    )
+
+
+@mcp.tool(meta={"ui": {"visibility": ["model", "app"]}})
+def list_koromo_games(
+    account_id: int | None = None,
+    rank: int | None = None,
+    reviewed: bool | None = None,
+    start_time: int | None = None,
+    end_time: int | None = None,
+    limit: int = 20,
+    offset: int = 0,
+    auto_sync: bool = False,
+) -> dict[str, Any]:
+    """Return one compact page of locally cached Koromo hanchan games.
+
+    Times are Unix seconds. Use open_game_catalog for interactive browsing instead of
+    sending a large game list into the conversation.
+    """
+    return service.list_koromo_games(
+        account_id=account_id,
+        rank=rank,
+        reviewed=reviewed,
+        start_time=start_time,
+        end_time=end_time,
+        limit=limit,
+        offset=offset,
+        auto_sync=auto_sync,
+    )
+
+
+@mcp.tool(meta={"ui": {"visibility": ["model", "app"]}})
+def get_koromo_sync_status(
+    account_id: int | None = None,
+) -> dict[str, Any]:
+    """Return compact local cache and Koromo sync status for bound accounts."""
+    return service.koromo_sync_status(account_id=account_id)
+
+
+@mcp.tool(meta={"ui": {"visibility": ["model", "app"]}})
+def prepare_selected_game_review(uuid: str) -> dict[str, Any]:
+    """Prepare Mortal Web for one game selected from the local Koromo catalog.
+
+    This only creates the prefilled URL. The user must open it and complete Turnstile;
+    no external analysis or submission starts automatically.
+    """
+    return service.prepare_selected_game_review(uuid)
 
 
 @mcp.tool()
@@ -275,6 +405,30 @@ def get_local_profile(
     """
     return service.local_profile(
         include_rejected=include_rejected,
+    )
+
+
+def _catalog_tool_result(result: dict[str, Any]) -> types.CallToolResult:
+    summary = {
+        "total": int(result["total"]),
+        "limit": int(result["limit"]),
+        "offset": int(result["offset"]),
+        "has_more": bool(result["has_more"]),
+        "sync_status": result.get("sync_status"),
+        "catalog_notice": result.get("catalog_notice"),
+    }
+    return types.CallToolResult(
+        content=[
+            types.TextContent(
+                type="text",
+                text=(
+                    f"Opened the local MJTutor catalog with {summary['total']} cached "
+                    "games. Game rows stay in component-only metadata."
+                ),
+            )
+        ],
+        structuredContent=summary,
+        _meta={"mjtutor/catalog": result},
     )
 
 

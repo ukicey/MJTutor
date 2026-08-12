@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>MJTutor 牌局目录</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+        --bg: #f7f8f6;
+        --surface: #ffffff;
+        --ink: #202522;
+        --muted: #68716c;
+        --line: #d9dedb;
+        --green: #14745b;
+        --green-soft: #e6f2ed;
+        --gold: #a96f12;
+        --red: #b23b37;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #171a18;
+          --surface: #202421;
+          --ink: #eef1ef;
+          --muted: #a8b0ab;
+          --line: #3b433e;
+          --green: #58b99a;
+          --green-soft: #213d34;
+          --gold: #e0ab4d;
+          --red: #ef8580;
+        }
+      }
+
+      * { box-sizing: border-box; }
+      body { margin: 0; min-width: 280px; background: var(--bg); }
+      button, select, input { font: inherit; letter-spacing: 0; }
+      button { cursor: pointer; }
+
+      .shell { max-width: 1120px; margin: 0 auto; padding: 16px; }
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid var(--line);
+      }
+      h1 { margin: 0; font-size: 20px; line-height: 1.25; letter-spacing: 0; }
+      .status { margin-top: 4px; color: var(--muted); font-size: 13px; }
+      .actions { display: flex; gap: 8px; flex: 0 0 auto; }
+      button {
+        min-height: 36px;
+        padding: 7px 12px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--surface);
+        color: var(--ink);
+      }
+      button:hover { border-color: var(--green); }
+      button:disabled { cursor: default; opacity: .55; }
+      .primary { border-color: var(--green); background: var(--green); color: #fff; }
+      .primary:hover { filter: brightness(.94); }
+
+      .filters {
+        display: grid;
+        grid-template-columns: minmax(150px, 1.2fr) repeat(2, minmax(120px, .8fr)) repeat(2, minmax(140px, 1fr));
+        gap: 10px;
+        padding: 14px 0;
+      }
+      label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
+      select, input {
+        width: 100%;
+        height: 36px;
+        padding: 6px 9px;
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        background: var(--surface);
+        color: var(--ink);
+      }
+
+      .notice {
+        display: none;
+        margin-bottom: 12px;
+        padding: 10px 12px;
+        border-left: 3px solid var(--gold);
+        background: color-mix(in srgb, var(--gold) 9%, var(--surface));
+        color: var(--ink);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .notice.visible { display: block; }
+
+      .table-wrap { overflow-x: auto; border-top: 1px solid var(--line); }
+      table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+      th, td {
+        padding: 11px 8px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: middle;
+        font-size: 13px;
+      }
+      th { color: var(--muted); font-size: 12px; font-weight: 600; }
+      th:nth-child(1) { width: 154px; }
+      th:nth-child(2) { width: 106px; }
+      th:nth-child(3) { width: 66px; }
+      th:nth-child(4) { width: 84px; }
+      th:nth-child(5) { width: 88px; }
+      th:nth-child(6) { width: 84px; }
+      .rank { font-weight: 700; }
+      .rank-1 { color: var(--gold); }
+      .reviewed { color: var(--green); }
+      .uuid { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+      .empty { padding: 42px 12px; color: var(--muted); text-align: center; }
+      .pager {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        padding-top: 12px;
+      }
+      .pager-info { color: var(--muted); font-size: 13px; }
+      .pager-buttons { display: flex; gap: 8px; }
+      .busy { opacity: .65; pointer-events: none; }
+
+      @media (max-width: 760px) {
+        .shell { padding: 12px; }
+        .topbar { align-items: flex-start; }
+        .actions { flex-wrap: wrap; justify-content: flex-end; }
+        .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .filters label:first-child { grid-column: 1 / -1; }
+        th:nth-child(5), td:nth-child(5) { display: none; }
+      }
+
+      @media (max-width: 430px) {
+        .topbar { display: grid; }
+        .actions { justify-content: flex-start; }
+        .filters { grid-template-columns: 1fr; }
+        .filters label:first-child { grid-column: auto; }
+        th:nth-child(2), td:nth-child(2), th:nth-child(5), td:nth-child(5) { display: none; }
+        th:nth-child(1) { width: 130px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell" id="app">
+      <header class="topbar">
+        <div>
+          <h1>MJTutor 牌局目录</h1>
+          <div class="status" id="status">读取本地目录...</div>
+        </div>
+        <div class="actions">
+          <button id="koromo" type="button">牌谱屋</button>
+          <button id="expand" type="button">全屏</button>
+          <button id="sync" class="primary" type="button">同步</button>
+        </div>
+      </header>
+
+      <section class="filters" aria-label="牌局筛选">
+        <label>账号<select id="account"><option value="">全部账号</option></select></label>
+        <label>顺位<select id="rank"><option value="">全部顺位</option><option value="1">1 位</option><option value="2">2 位</option><option value="3">3 位</option><option value="4">4 位</option></select></label>
+        <label>复盘<select id="reviewed"><option value="">全部</option><option value="false">未复盘</option><option value="true">已复盘</option></select></label>
+        <label>开始日期<input id="from" type="date" /></label>
+        <label>结束日期<input id="to" type="date" /></label>
+      </section>
+
+      <div class="notice" id="notice" role="status"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>时间</th><th>场次</th><th>顺位</th><th>终局点数</th><th>牌谱</th><th></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <div class="empty" id="empty" hidden>本地还没有符合条件的牌局。</div>
+      </div>
+      <footer class="pager">
+        <div class="pager-info" id="pager-info"></div>
+        <div class="pager-buttons">
+          <button id="prev" type="button">上一页</button>
+          <button id="next" type="button">下一页</button>
+        </div>
+      </footer>
+    </main>
+
+    <script>
+      const PAGE_SIZE = 20;
+      const state = { offset: 0, total: 0, items: [], accounts: [], loading: false };
+      const pending = new Map();
+      let requestId = 1;
+      const $ = (id) => document.getElementById(id);
+
+      function rpc(method, params) {
+        const id = requestId++;
+        window.parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
+        return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+      }
+
+      async function callTool(name, args) {
+        if (window.openai?.callTool) return window.openai.callTool(name, args);
+        return rpc("tools/call", { name, arguments: args });
+      }
+
+      function structured(result) {
+        return result?.structuredContent || result?.structured_content || result || {};
+      }
+
+      function catalogData(result) {
+        const candidates = [
+          result,
+          result?._meta,
+          result?.meta,
+          result?.mcp_tool_result,
+          result?.call_tool_result,
+          result?.mcp_tool_result?._meta,
+          result?.call_tool_result?._meta,
+        ];
+        for (const candidate of candidates) {
+          if (candidate?.["mjtutor/catalog"]) return candidate["mjtutor/catalog"];
+        }
+        const fallback = structured(result);
+        return Array.isArray(fallback?.items) ? fallback : null;
+      }
+
+      function filters() {
+        const fromValue = $("from").value;
+        const toValue = $("to").value;
+        return {
+          account_id: $("account").value ? Number($("account").value) : null,
+          rank: $("rank").value ? Number($("rank").value) : null,
+          reviewed: $("reviewed").value === "" ? null : $("reviewed").value === "true",
+          start_time: fromValue ? Math.floor(new Date(fromValue + "T00:00:00").getTime() / 1000) : null,
+          end_time: toValue ? Math.floor(new Date(toValue + "T23:59:59").getTime() / 1000) : null,
+          limit: PAGE_SIZE,
+          offset: state.offset,
+        };
+      }
+
+      function setBusy(value) {
+        state.loading = value;
+        $("app").classList.toggle("busy", value);
+      }
+
+      function setNotice(text) {
+        $("notice").textContent = text || "";
+        $("notice").classList.toggle("visible", Boolean(text));
+      }
+
+      function setAccounts(syncStatus) {
+        const accounts = syncStatus?.accounts || [];
+        state.accounts = accounts;
+        const selected = $("account").value;
+        $("account").innerHTML = '<option value="">全部账号</option>' + accounts.map((account) =>
+          `<option value="${account.account_id}">${escapeHtml(account.nickname)} · ${account.account_id}</option>`
+        ).join("");
+        if ([...$("account").options].some((option) => option.value === selected)) $("account").value = selected;
+
+        const blocked = accounts.find((item) => item.status === "verification_required");
+        const unavailable = accounts.find((item) => item.status === "unavailable");
+        if (blocked) setNotice("牌谱屋要求浏览器验证或站方访问密钥，当前继续显示本地缓存。MJTutor 不会绕过验证。");
+        else if (unavailable) setNotice("牌谱屋暂时无法访问，当前继续显示本地缓存。");
+        else setNotice("");
+      }
+
+      function render(data) {
+        state.items = data.items || [];
+        state.total = Number(data.total || 0);
+        const rows = $("rows");
+        rows.innerHTML = state.items.map((game) => {
+          const date = new Date(Number(game.start_time) * 1000);
+          const time = new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
+          const reviewState = game.reviewed ? '<span class="reviewed">已复盘</span>' : "未复盘";
+          return `<tr>
+            <td>${time}</td>
+            <td>${escapeHtml(game.mode_label)}</td>
+            <td><span class="rank rank-${game.player_rank}">${game.player_rank} 位</span></td>
+            <td>${Number(game.player_score).toLocaleString("zh-CN")}</td>
+            <td class="uuid" title="${escapeHtml(game.uuid)}">${reviewState}</td>
+            <td><button type="button" data-review="${escapeHtml(game.uuid)}">复盘</button></td>
+          </tr>`;
+        }).join("");
+        $("empty").hidden = state.items.length !== 0;
+        const first = state.total ? state.offset + 1 : 0;
+        const last = Math.min(state.offset + state.items.length, state.total);
+        $("pager-info").textContent = `${first}-${last} / ${state.total}`;
+        $("prev").disabled = state.offset === 0;
+        $("next").disabled = state.offset + state.items.length >= state.total;
+        $("status").textContent = state.accounts.length
+          ? `${state.accounts.reduce((sum, item) => sum + Number(item.cached_game_count || 0), 0)} 局已缓存`
+          : "尚未绑定牌谱屋账号";
+      }
+
+      async function loadPage() {
+        setBusy(true);
+        try {
+          const result = catalogData(await callTool("query_game_catalog", filters()));
+          render(result);
+        } catch (error) {
+          setNotice(`目录读取失败：${error?.message || String(error)}`);
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      async function refreshStatus() {
+        const result = structured(await callTool("get_koromo_sync_status", {}));
+        setAccounts(result);
+        return result;
+      }
+
+      async function sync() {
+        setBusy(true);
+        $("status").textContent = "正在同步...";
+        try {
+          await callTool("sync_koromo_games", { force: true });
+          state.offset = 0;
+          await refreshStatus();
+          await loadPage();
+        } catch (error) {
+          setNotice(`同步失败：${error?.message || String(error)}`);
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      async function prepareReview(uuid) {
+        setBusy(true);
+        try {
+          const result = structured(await callTool("prepare_selected_game_review", { uuid }));
+          const game = result.game || {};
+          const prompt = result.status === "already_reviewed"
+            ? `用 MJTutor 继续复盘我在牌局目录中选择的这一局。已有 review_id：${result.review_id}。请直接读取本地复盘，不要重新提交 Mortal。`
+            : `用 MJTutor 复盘我在牌局目录中选择的这一局。牌谱 UUID：${game.uuid || uuid}。Mortal Web 地址：${result.mortal_web?.submission_url || ""}。请打开这个页面，等我完成 Turnstile 后再继续。`;
+          if (window.openai?.sendFollowUpMessage) {
+            await window.openai.sendFollowUpMessage({ prompt, scrollToBottom: true });
+          } else {
+            await rpc("ui/message", { role: "user", content: [{ type: "text", text: prompt }] });
+          }
+        } catch (error) {
+          setNotice(`无法准备复盘：${error?.message || String(error)}`);
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "").replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[char]);
+      }
+
+      window.addEventListener("message", (event) => {
+        if (event.source !== window.parent) return;
+        const message = event.data;
+        if (!message || message.jsonrpc !== "2.0") return;
+        if (message.id !== undefined && pending.has(message.id)) {
+          const entry = pending.get(message.id);
+          pending.delete(message.id);
+          if (message.error) entry.reject(message.error); else entry.resolve(message.result);
+        }
+        if (message.method === "ui/notifications/tool-result") {
+          const initial = catalogData(message.params);
+          if (initial?.items) {
+            setAccounts(initial.sync_status);
+            render(initial);
+          }
+        }
+      }, { passive: true });
+
+      $("sync").addEventListener("click", sync);
+      $("koromo").addEventListener("click", async () => {
+        const prompt = "请在侧边浏览器打开牌谱屋：https://amae-koromo.sapk.ch/ 。只打开页面，不要代替我搜索、提交或登录。";
+        if (window.openai?.sendFollowUpMessage) {
+          await window.openai.sendFollowUpMessage({ prompt, scrollToBottom: true });
+        } else {
+          await rpc("ui/message", { role: "user", content: [{ type: "text", text: prompt }] });
+        }
+      });
+      $("expand").addEventListener("click", async () => {
+        if (window.openai?.requestDisplayMode) await window.openai.requestDisplayMode({ mode: "fullscreen" });
+      });
+      $("rows").addEventListener("click", (event) => {
+        const button = event.target.closest("button[data-review]");
+        if (button) prepareReview(button.dataset.review);
+      });
+      ["account", "rank", "reviewed", "from", "to"].forEach((id) => $(id).addEventListener("change", () => {
+        state.offset = 0;
+        loadPage();
+      }));
+      $("prev").addEventListener("click", () => { state.offset = Math.max(0, state.offset - PAGE_SIZE); loadPage(); });
+      $("next").addEventListener("click", () => { state.offset += PAGE_SIZE; loadPage(); });
+
+      const initialCatalog = catalogData(window.openai?.toolResponseMetadata) || catalogData(window.openai?.toolOutput);
+      if (initialCatalog?.items) {
+        setAccounts(initialCatalog.sync_status);
+        render(initialCatalog);
+      } else {
+        refreshStatus().then(loadPage).catch((error) => setNotice(error?.message || String(error)));
+      }
+    </script>
+  </body>
+</html>

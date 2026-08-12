@@ -2,7 +2,7 @@
 
 MJTutor 是一个面向 Codex 的本地日麻复盘插件。Mortal 负责评估牌谱动作，插件通过 MCP 保存结构化证据，Codex Skill 再把牌谱事实、Mortal 判断、规则推导和教练推测组织成可以追问的教学对话。
 
-> 当前状态：个人 MVP。雀魂四麻半庄、Mortal Web 报告导入、决策查询、本地记忆和可纠正画像已经可用。Mortal Web 仍需用户亲自完成 Turnstile；牌谱屋自动同步尚未实现。
+> 当前状态：个人 MVP。雀魂四麻半庄、牌谱屋本地目录、Mortal Web 报告导入、决策查询、本地记忆和可纠正画像已经可用。Mortal Web 仍需用户亲自完成 Turnstile。
 
 ## 功能
 
@@ -11,6 +11,7 @@ MJTutor 是一个面向 Codex 的本地日麻复盘插件。Mortal 负责评估�
 - 保存候选动作、Q 值、概率、向听数和 Mortal 模型版本。
 - 重放 `mjai_log`，补充决策前的分数、宝牌、牌河、副露、立直状态和可见牌统计。
 - 使用本地 SQLite 保存复盘、明确反馈和可以确认、纠正、否认或遗忘的长期画像。
+- 从牌谱屋增量同步公开的四麻半庄段位场元数据，在交互目录中筛选、翻页和选择牌局。
 - 单机单主人；一份安装可以绑定多个雀魂账号，但没有登录或多用户系统。
 
 MJTutor 不会把 Mortal 的偏好自动称为错误，也不会声称 Mortal 能解释自己的内部原因。
@@ -63,6 +64,22 @@ https://game.maj-soul.com/1/?paipu=...
 4. 教练先选择最多三个最有教学价值的决策，再按用户追问展开。
 
 MJTutor 不会绕过、破解或外包 Turnstile。Mortal Web 没有本项目可以依赖的公开提交 API，因此这一步不能无人值守。
+
+## 牌局目录
+
+绑定牌谱屋账号后，可以直接对 Codex 说：
+
+```text
+打开我的 MJTutor 牌局目录。
+```
+
+目录由 MCP App 渲染，不需要把大量牌局记录放进聊天上下文。它支持账号、顺位、日期和是否已复盘筛选，也可以选择一局并进入现有 Mortal Web 流程。在暂不渲染 MCP App 的客户端，`list_koromo_games`、`sync_koromo_games` 和 `prepare_selected_game_review` 仍可单独使用。
+
+“自动同步”采用轻量的机会式策略：打开目录时，若距离上次尝试已超过 30 分钟，就增量查询牌谱屋；也可以在目录中手动刷新。MJTutor 不安装常驻进程，不会在 Codex 未运行时后台活动，也不会把同步到的牌局自动送去 Mortal。
+
+首次同步默认查询最近一年；后续同步会回看最近一周，避免遗漏牌谱屋延迟出现的记录。牌局按 UUID 去重并保存到 `~/.local/share/mjtutor/coach.sqlite3`。
+
+牌谱屋目前可能要求其网页计算挑战或站方访问密钥。MJTutor 不绕过该验证；遇到时会继续显示本地缓存并报告 `verification_required`。如果站方提供访问密钥，可在启动 MCP 的环境中设置 `MJTUTOR_KOROMO_TOKEN`。直接在牌谱屋网页正常浏览仍不受 MJTutor 控制。
 
 ## 长期记忆与画像
 
@@ -129,8 +146,9 @@ MJTutor 把昵称用于显示，把经过用户确认的牌谱屋 `account_id` �
 
 - 只支持雀魂四人半庄；牌谱格式不总能可靠区分段位场与友人场。
 - Mortal Web 需要人工验证。
-- 牌谱屋自动检索和增量同步尚未实现。
-- 不提供 GUI、自动雀魂登录、实时对局辅助或远程托管服务。
+- 牌谱屋可能延迟、不完整或要求浏览器验证；未收录不代表牌局不存在。
+- 牌局目录是宿主支持时显示的 MCP App，不是独立桌面程序。
+- 不提供自动雀魂登录、常驻后台进程、实时对局辅助或远程托管服务。
 - 插件启动器当前面向 macOS/Linux。
 - Mortal 和 `mjai-reviewer` 是外部项目，本仓库不包含其源码或模型权重。
 
@@ -152,6 +170,7 @@ uv run python -m compileall -q plugins/mjtutor/src tests
 .agents/plugins/marketplace.json
 plugins/mjtutor/.codex-plugin/plugin.json
 plugins/mjtutor/.mcp.json
+plugins/mjtutor/assets/game-catalog.html
 plugins/mjtutor/bin/mjtutor-mcp
 plugins/mjtutor/skills/coach-mahjong-soul/
 plugins/mjtutor/src/mjtutor/
