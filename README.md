@@ -55,7 +55,7 @@ codex plugin add mjtutor@mjtutor
 安装后新建一个 Codex 任务。可以先发送：
 
 ```text
-检查 MJTutor 配置和已有画像，不要开始教学。
+查看我的 MJTutor 配置和已有画像。
 ```
 
 ## 复盘牌谱

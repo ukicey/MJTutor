@@ -29,6 +29,30 @@ def test_plugin_starter_prompts_fit_host_limits() -> None:
     assert all(len(prompt) <= 128 for prompt in prompts)
 
 
+def test_user_entry_points_do_not_expose_internal_guardrails() -> None:
+    manifest = json.loads(
+        (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
+    entry_points = "\n".join(manifest["interface"]["defaultPrompt"])
+    skill_metadata = (
+        PLUGIN_ROOT / "skills" / "coach-mahjong-soul" / "agents" / "openai.yaml"
+    )
+    entry_points += skill_metadata.read_text(encoding="utf-8")
+    assert "不要开始教学" not in entry_points
+    assert "without starting a coaching review" not in entry_points
+
+
+def test_profile_payload_does_not_repeat_coaching_policy(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("MJTUTOR_DATA_DIR", os.fspath(tmp_path))
+    from mjtutor.storage import ReviewRepository
+
+    profile = ReviewRepository(tmp_path / "coach.sqlite3").coaching_profile()
+    assert "notice" not in profile
+
+
 def test_plugin_brand_assets_are_packaged() -> None:
     manifest = json.loads(
         (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")

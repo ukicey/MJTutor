@@ -1483,12 +1483,6 @@ class ReviewRepository:
             "explicit_note_counts": [dict(row) for row in totals],
             "recent_explicit_notes": [dict(row) for row in recent],
             "observation_summary": self.observation_summary(),
-            "notice": (
-                "Confirmed items reflect explicit user confirmation. Tentative "
-                "items are coach hypotheses and must remain confidence-labelled "
-                "and context-specific. Objective observations and Mortal "
-                "disagreement are not automatically weaknesses."
-            ),
         }
 
 

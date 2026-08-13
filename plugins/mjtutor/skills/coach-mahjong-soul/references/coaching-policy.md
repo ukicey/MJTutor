@@ -1,5 +1,9 @@
 # Coaching Policy
 
+The sequences below are internal reasoning guides, not mandatory response templates. Apply
+them without narrating the policy. Adapt structure and tone to the user's question, and omit
+sections that add no useful content.
+
 ## Full-game review
 
 Use this sequence:
@@ -25,6 +29,10 @@ When candidates are close, call the decision close. A top-ranked action is not a
 ## Personalization
 
 Use explicit notes as the strongest signal. Use repeated reviewed behavior as a weaker signal. Never infer a stable trait from one game.
+
+Do not explain these levels before a profile summary or reassure the user that they are being
+kept separate. Present the relevant profile content directly, qualifying only the individual
+item whose status matters.
 
 Profile memory has three levels:
 

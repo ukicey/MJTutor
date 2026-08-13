@@ -1,6 +1,6 @@
 {
   "name": "mjtutor",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Evidence-backed Mahjong Soul hanchan coaching with Mortal Web and local memory.",
   "author": {
     "name": "ukicey",
@@ -34,7 +34,7 @@
     "composerIcon": "./assets/composer-icon.png",
     "logo": "./assets/logo.png",
     "defaultPrompt": [
-      "检查 MJTutor 配置和已有画像，不要开始教学。",
+      "查看我的 MJTutor 配置和已有画像。",
       "复盘这份雀魂四麻半庄牌谱，先挑三个关键决策，解释我和 Mortal 的差异。",
       "打开我的 MJTutor 牌局目录。"
     ]

@@ -7,6 +7,13 @@
 
 暂无。
 
+## [0.3.2] - 2026-08-13
+
+### 变更
+
+- 将意图判断、证据分层和画像边界改为静默执行，减少面向用户的流程声明和开发术语。
+- 简化配置与画像入口提示，使回复直接呈现结果而不是先复述内部约束。
+
 ## [0.3.1] - 2026-08-13
 
 ### 新增
@@ -67,7 +74,8 @@
 
 - 从公开测试夹具中移除真实雀魂牌谱码。
 
-[Unreleased]: https://github.com/ukicey/MJTutor/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/ukicey/MJTutor/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/ukicey/MJTutor/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/ukicey/MJTutor/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/ukicey/MJTutor/compare/9dd7d5b...v0.3.0
 [0.2.0]: https://github.com/ukicey/MJTutor/compare/f4946eb...9dd7d5b

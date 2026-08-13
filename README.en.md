@@ -59,7 +59,7 @@ codex plugin add mjtutor@mjtutor
 Start a new Codex task after installation. A useful first prompt is:
 
 ```text
-Check my MJTutor setup and existing profile without starting a coaching review.
+Show my MJTutor setup and existing profile.
 ```
 
 ## Review a game

@@ -59,7 +59,7 @@ codex plugin add mjtutor@mjtutor
 依頼できます。
 
 ```text
-指導を始めずに、MJTutor の設定と既存のプレイヤー像を確認してください。
+MJTutor の設定と既存のプレイヤー像を表示してください。
 ```
 
 ## 牌譜をレビューする
