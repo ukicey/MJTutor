@@ -1,6 +1,6 @@
 [project]
 name = "mjtutor"
-version = "0.3.2"
+version = "0.3.3"
 description = "Local Mahjong Soul hanchan review tools for a Mortal-backed coaching agent"
 readme = "README.md"
 license = { file = "LICENSE" }

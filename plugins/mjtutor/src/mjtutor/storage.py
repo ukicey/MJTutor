@@ -1187,11 +1187,6 @@ class ReviewRepository:
             "match_rate": mortal_matches / decision_count if decision_count else None,
             "by_model": [dict(row) for row in models],
             "disagreement_action_patterns": [dict(row) for row in patterns],
-            "interpretation_notice": (
-                "These are objective action comparisons, not stable traits. "
-                "Q values and match rates from different Mortal model tags must "
-                "not be merged into a universal skill score."
-            ),
         }
 
     def list_observations(
@@ -1316,10 +1311,6 @@ class ReviewRepository:
             ).fetchall()
         result = _profile_item_dict(row)
         result["evidence"] = [dict(item) for item in evidence]
-        result["evidence_notice"] = (
-            "support and contradict examples are references to reviewed decisions; "
-            "use get_decision for the full table context."
-        )
         return result
 
     def list_profile_items(

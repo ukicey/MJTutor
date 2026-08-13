@@ -138,11 +138,6 @@ class Decision:
             "actual_rank": self.actual_index + 1,
             "q_gap": self.q_gap,
             "candidates": [candidate.as_dict() for candidate in candidates],
-            "evidence_notice": (
-                "q_value and probability are Mortal outputs. Tactical reasons "
-                "are not provided by Mortal and must be presented as "
-                "rule-derived facts or coaching hypotheses."
-            ),
         }
         if include_context:
             result["public_context"] = self.public_context or {

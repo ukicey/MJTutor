@@ -51,6 +51,21 @@ def test_profile_payload_does_not_repeat_coaching_policy(
 
     profile = ReviewRepository(tmp_path / "coach.sqlite3").coaching_profile()
     assert "notice" not in profile
+    assert "interpretation_notice" not in profile["observation_summary"]
+
+
+def test_decision_payload_does_not_repeat_evidence_policy() -> None:
+    from mjtutor.models import ReviewDocument
+
+    review = ReviewDocument.from_json(
+        json.loads(
+            (ROOT / "tests" / "fixtures" / "sample_review.json").read_text(
+                encoding="utf-8"
+            )
+        )
+    )
+    decision = review.get_decision("k0.0:d0").as_dict()
+    assert "evidence_notice" not in decision
 
 
 def test_plugin_brand_assets_are_packaged() -> None:

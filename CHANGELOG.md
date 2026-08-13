@@ -7,6 +7,12 @@
 
 暂无。
 
+## [0.3.3] - 2026-08-13
+
+### 变更
+
+- 精简画像、观察统计和决策工具的返回内容，避免重复的证据说明干扰自然对话。
+
 ## [0.3.2] - 2026-08-13
 
 ### 变更
@@ -74,7 +80,8 @@
 
 - 从公开测试夹具中移除真实雀魂牌谱码。
 
-[Unreleased]: https://github.com/ukicey/MJTutor/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/ukicey/MJTutor/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/ukicey/MJTutor/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/ukicey/MJTutor/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/ukicey/MJTutor/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/ukicey/MJTutor/compare/9dd7d5b...v0.3.0
