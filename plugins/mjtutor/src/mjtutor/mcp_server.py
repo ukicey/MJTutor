@@ -78,14 +78,8 @@ def query_game_catalog(
 
 @mcp.tool()
 def check_setup() -> dict[str, Any]:
-    """Check local mjai-reviewer, Mortal, database, and supported-log readiness."""
+    """Check Mortal Web, ranked-game catalog, local data, and review preferences."""
     return service.check_setup()
-
-
-@mcp.tool()
-def inspect_majsoul_log(log_path: str) -> dict[str, Any]:
-    """Validate a local four-player hanchan export without running Mortal."""
-    return service.inspect_log(log_path)
 
 
 @mcp.tool()
@@ -139,52 +133,20 @@ def import_mortal_web_report(
 
 
 @mcp.tool()
-def review_majsoul_hanchan(
-    log_path: str,
-    player_id: int,
-    kyokus: str | None = None,
-) -> dict[str, Any]:
-    """Run Mortal through mjai-reviewer and save its structured review locally.
-
-    player_id is the seat at East 1: 0=East, 1=South, 2=West, 3=North.
-    kyokus optionally limits analysis, for example "E1,E4,S3.1".
-    """
-    return service.review_log(
-        log_path,
-        player_id=player_id,
-        kyokus=kyokus,
-    )
-
-
-@mcp.tool()
-def import_mjai_review(
-    review_path: str,
-    source_log_path: str,
-    player_id: int,
-) -> dict[str, Any]:
-    """Import an existing mjai-reviewer JSON report into the local coach database."""
-    return service.import_review(
-        review_path,
-        source_log_path=source_log_path,
-        player_id=player_id,
-    )
-
-
-@mcp.tool()
-def bind_koromo_account(
+def bind_majsoul_account(
     nickname: str,
-    koromo_player_id: int,
+    account_id: int,
 ) -> dict[str, Any]:
-    """Bind or refresh one of the local user's accounts after confirmation.
+    """Bind or refresh a confirmed Mahjong Soul account for the local user.
 
-    nickname is display and search history. koromo_player_id is the stable
-    account_id from the user's Koromo URL. Never select a same-named result
-    without user confirmation. Matching existing paipu reviews receive this
-    account as provenance automatically.
+    account_id is the numeric Mahjong Soul account ID used by the ranked-game
+    catalog. Nicknames are only display and search history. Never select a
+    same-named result without user confirmation. Matching existing paipu reviews
+    receive this account as provenance automatically.
     """
-    return service.bind_koromo_account(
+    return service.bind_majsoul_account(
         nickname=nickname,
-        koromo_player_id=koromo_player_id,
+        account_id=account_id,
     )
 
 

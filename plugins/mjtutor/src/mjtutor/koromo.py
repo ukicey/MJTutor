@@ -13,9 +13,9 @@ _PAIPU_UUID_PATTERN = re.compile(r"^([^_]+)")
 
 
 def encode_paipu_account_id(koromo_player_id: int) -> int:
-    """Encode Koromo's account_id for a Mahjong Soul paipu viewer suffix."""
+    """Encode a Mahjong Soul account ID for a paipu viewer suffix."""
     if koromo_player_id <= 0:
-        raise CoachError("koromo_player_id must be a positive integer")
+        raise CoachError("account_id must be a positive integer")
     return _PAIPU_ID_OFFSET + (
         (7 * koromo_player_id + _ACCOUNT_ID_ADDEND) ^ _ACCOUNT_ID_XOR
     )
@@ -34,7 +34,7 @@ def decode_paipu_account_id(encoded_id: int) -> int | None:
 
 
 def extract_koromo_player_id(paipu_url: str) -> int | None:
-    """Return the Koromo account_id selected by a Mahjong Soul paipu URL."""
+    """Return the Mahjong Soul account ID selected by a paipu URL."""
     parsed = urlparse(paipu_url.strip())
     paipu_values = parse_qs(parsed.query).get("paipu")
     if not paipu_values:

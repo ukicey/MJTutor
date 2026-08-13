@@ -13,13 +13,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="mjtutor")
     commands = parser.add_subparsers(dest="command", required=True)
 
-    commands.add_parser("setup", help="check local reviewer and Mortal paths")
+    commands.add_parser("setup", help="show Mortal Web and local data readiness")
 
     account_parser = commands.add_parser(
-        "account-bind", help="bind a user-confirmed Koromo account to the local profile"
+        "account-bind",
+        help="bind a user-confirmed Mahjong Soul account to the local profile",
     )
     account_parser.add_argument("nickname")
-    account_parser.add_argument("koromo_player_id", type=int)
+    account_parser.add_argument("account_id", type=int)
 
     commands.add_parser(
         "profile", help="show local accounts and compact coaching memory"
@@ -36,16 +37,6 @@ def build_parser() -> argparse.ArgumentParser:
     commands.add_parser(
         "model-default-clear", help="clear the default Mortal Web model"
     )
-
-    inspect_parser = commands.add_parser(
-        "inspect", help="validate a Mahjong Soul export"
-    )
-    inspect_parser.add_argument("log_path")
-
-    review_parser = commands.add_parser("review", help="run and store a Mortal review")
-    review_parser.add_argument("log_path")
-    review_parser.add_argument("--seat", type=int, required=True, choices=range(4))
-    review_parser.add_argument("--kyokus")
 
     web_parser = commands.add_parser(
         "web-prepare", help="prepare a human-verified remote Mortal review"
@@ -84,18 +75,14 @@ def main() -> None:
     service = CoachService()
     actions: dict[str, Callable[[], Any]] = {
         "setup": service.check_setup,
-        "account-bind": lambda: service.bind_koromo_account(
+        "account-bind": lambda: service.bind_majsoul_account(
             nickname=args.nickname,
-            koromo_player_id=args.koromo_player_id,
+            account_id=args.account_id,
         ),
         "profile": service.local_profile,
         "preferences": service.analysis_preferences,
         "model-default": lambda: service.set_default_mortal_model(args.model_tag),
         "model-default-clear": service.clear_default_mortal_model,
-        "inspect": lambda: service.inspect_log(args.log_path),
-        "review": lambda: service.review_log(
-            args.log_path, player_id=args.seat, kyokus=args.kyokus
-        ),
         "web-prepare": lambda: service.prepare_web_review(
             args.majsoul_log_url,
             language=args.language,

@@ -160,10 +160,10 @@ class ReviewDocument:
     @classmethod
     def from_json(cls, raw: Any, *, player_id: int | None = None) -> ReviewDocument:
         if not isinstance(raw, dict):
-            raise ReviewerError("mjai-reviewer output must be a JSON object")
+            raise ReviewerError("Mortal review must be a JSON object")
         review = raw.get("review", raw)
         if not isinstance(review, dict):
-            raise ReviewerError("mjai-reviewer output is missing the review object")
+            raise ReviewerError("Mortal report is missing the review object")
         kyokus = review.get("kyokus")
         if not isinstance(kyokus, list):
             raise ReviewerError("Mortal review is missing kyokus")

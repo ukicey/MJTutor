@@ -84,7 +84,7 @@ it never bypasses or completes verification for you.
 
 ## Game catalog
 
-After binding a Koromo account, ask Codex:
+After binding a Mahjong Soul account, ask Codex:
 
 ```text
 Open my MJTutor game catalog.
@@ -94,10 +94,11 @@ The catalog can filter games by account, placement, date, and review status.
 You can refresh it manually and select a game to review. Account binding is
 optional and does not affect direct review from a Mahjong Soul URL.
 
-MJTutor identifies an account with the Koromo `account_id` you confirm and
-uses nicknames only for display. Koromo data may be delayed, incomplete, or
-protected by additional verification. If access is unavailable, MJTutor
-continues to show records already stored locally.
+MJTutor identifies an account with the Mahjong Soul account ID you confirm.
+Koromo exposes the same value as `account_id`; it is not a separate Koromo
+account. Nicknames are used only for display. Koromo data may be delayed,
+incomplete, or protected by additional verification. If access is unavailable,
+MJTutor continues to show records already stored locally.
 
 ## Long-term memory
 

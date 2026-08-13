@@ -288,7 +288,7 @@
         $("next").disabled = state.offset + state.items.length >= state.total;
         $("status").textContent = state.accounts.length
           ? `${state.accounts.reduce((sum, item) => sum + Number(item.cached_game_count || 0), 0)} 局已缓存`
-          : "尚未绑定牌谱屋账号";
+          : "尚未绑定雀魂账号";
       }
 
       async function loadPage() {

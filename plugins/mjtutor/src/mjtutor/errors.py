@@ -7,7 +7,7 @@ class InvalidLogError(CoachError):
 
 
 class ReviewerError(CoachError):
-    """Raised when mjai-reviewer or Mortal cannot produce a review."""
+    """Raised when a Mortal review cannot be prepared, fetched, or parsed."""
 
 
 class ReviewNotFoundError(CoachError):

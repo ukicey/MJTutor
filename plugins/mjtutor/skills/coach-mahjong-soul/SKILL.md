@@ -1,6 +1,6 @@
 ---
 name: coach-mahjong-soul
-description: Review and teach from four-player Mahjong Soul hanchan logs with the local mjtutor MCP and Mortal evidence. Also govern development and testing of the MJTutor review workflow so technical validation does not start unsolicited coaching. Use when the user supplies a local export or Mahjong Soul paipu URL; asks to import, review, explain, compare, or discuss ranked-game decisions; tests or debugs the Skill, MCP, provider, parser, or report flow; asks why a discard, call, riichi, or push-fold choice differs from Mortal; or wants coaching notes, recurring weakness analysis, and a personalized riichi-mahjong profile.
+description: Review and teach from four-player Mahjong Soul hanchan paipu URLs with the local mjtutor MCP and Mortal Web evidence. Also govern development and testing of the MJTutor review workflow so technical validation does not start unsolicited coaching. Use when the user supplies a Mahjong Soul paipu URL; asks to import, review, explain, compare, or discuss ranked-game decisions; tests or debugs the Skill, MCP, Mortal Web provider, parser, or report flow; asks why a discard, call, riichi, or push-fold choice differs from Mortal; or wants coaching notes, recurring weakness analysis, and a personalized riichi-mahjong profile.
 ---
 
 # Coach Mahjong Soul
@@ -38,16 +38,15 @@ gameplay analysis.
 
 ## Review Workflow
 
-1. Call `check_setup` before the first analysis in a task. Report missing local components plainly.
-2. For a local export, call `inspect_majsoul_log` and accept only four-player hanchan logs. For a paipu URL, call `prepare_mortal_web_review`. When the user wants to browse or choose from ranked-game history, call `open_game_catalog` instead of narrating a long list in chat.
+1. Call `check_setup` before the first analysis in a task. Report unavailable services or local data errors only when they affect the requested action.
+2. For a paipu URL, call `prepare_mortal_web_review`. When the user wants to browse or choose from ranked-game history, call `open_game_catalog` instead of narrating a long list in chat.
 3. If preparation returns `model_preference_required`, briefly compare the available models and help the user choose before continuing. Save a default only when the user chooses it as their ongoing preference; pass an explicit `model_tag` without saving for a one-off choice.
 4. For Mortal Web, open the returned submission URL in the user's selected browser. Set the Mortal network control to `requested_settings.model_tag` and verify the visible selection; the URL itself does not preselect this field. When the latest user request explicitly asks to review that paipu or selected game, it authorizes submitting that paipu to Mortal Web. Inspect the review submit button after filling the settings: if Turnstile has completed automatically and the button is enabled, click it once and wait for the report page; if the page has already navigated to a report, do not submit again. If verification still requires user interaction, ask the user to complete it and continue from the existing page afterward; never bypass, outsource, or solve it. Do not submit when the user only asked to open, inspect, prepare, or test the workflow. After submission, call `import_mortal_web_report` with the generated report URL.
-5. For local Mortal, ask for or infer the East-1 seat only when it is not already known, then call `review_majsoul_hanchan`. Never choose the target seat from a nickname alone.
-6. Begin with at most three high-value disagreements from `get_review_summary`.
-7. Call `get_decision` before explaining any specific choice. Do not reason from the compact summary alone.
-8. Let the user choose the depth: short conclusion first, then expand tile efficiency, value, defense, placement, and alternatives as needed.
-9. Record feedback with `record_coaching_note` only when the user explicitly confirms a mistake, preference, question, or understanding.
-10. Use `get_local_profile` for cross-game coaching. Fetch full observations or decisions only when the current question needs them.
+5. Begin with at most three high-value disagreements from `get_review_summary`.
+6. Call `get_decision` before explaining any specific choice. Do not reason from the compact summary alone.
+7. Let the user choose the depth: short conclusion first, then expand tile efficiency, value, defense, placement, and alternatives as needed.
+8. Record feedback with `record_coaching_note` only when the user explicitly confirms a mistake, preference, question, or understanding.
+9. Use `get_local_profile` for cross-game coaching. Fetch full observations or decisions only when the current question needs them.
 
 ## Analysis Model Preference
 
@@ -66,13 +65,13 @@ gameplay analysis.
 ## Local Identity
 
 - Treat one MJTutor installation as one local human profile. Do not ask for, create, or route by a user key. The local human may bind more than one Mahjong Soul account.
-- Use Koromo as MJTutor's ranked-game catalog and stable account source. Display each account as nickname plus Koromo `account_id`; nicknames are neither unique nor stable.
-- Call `bind_koromo_account` only after the user confirms the correct Koromo search result. Never claim a same-named result automatically.
+- Use Koromo as MJTutor's ranked-game catalog. Display each account as nickname plus its Mahjong Soul account ID, represented as `account_id` in Koromo data; nicknames are neither unique nor stable.
+- Call `bind_majsoul_account` only after the user confirms the Mahjong Soul account ID belongs to them. Never claim a same-named search result automatically.
 - Use `open_game_catalog` for routine browsing, filtering, syncing, and selection. Use `list_koromo_games` only when the conversation needs a compact page of metadata.
 - Opening the catalog may call `sync_koromo_games` after a minimum interval. This is opportunistic incremental sync, not a resident background process. Manual refresh may use `force=true`.
 - A selected game only calls `prepare_selected_game_review`; it does not submit to Mortal or start analysis. Continue to require the user's Turnstile step.
 - If sync reports `verification_required`, keep serving the local cache and explain that Koromo currently requires its browser challenge or a site-owner access key. Never solve, scrape around, or bypass that gate.
-- A Mahjong Soul paipu viewer suffix may add account provenance when it decodes to a confirmed Koromo `account_id`. A review without account provenance still belongs to the local profile and needs no player binding.
+- A Mahjong Soul paipu viewer suffix may add account provenance when it decodes to a confirmed Mahjong Soul account ID. A review without account provenance still belongs to the local profile and needs no player binding.
 - Koromo is a third-party, delayed, potentially incomplete catalog. Its Gold, Jade, and Throne ranked coverage does not prove that missing games did not occur.
 
 ## Long-Term Memory
@@ -122,8 +121,7 @@ Read [references/coaching-policy.md](references/coaching-policy.md) before produ
 
 ## Current Limits
 
-- Support four-player hanchan reviews from tenhou.net/6-compatible exports or Mortal Web paipu links.
-- Do not claim that the log validator can always distinguish ranked and friendly rooms.
+- Support four-player hanchan reviews from Mahjong Soul paipu links through Mortal Web.
+- Do not claim that Mortal Web reports can always distinguish ranked and friendly rooms.
 - Treat Mortal Web as a human-verified remote provider, not a public API. Do not claim headless submission.
 - The game catalog is an MCP App rendered by compatible hosts. Keep all catalog tools usable without its UI and do not claim automatic Mahjong Soul login or live-game assistance.
-- Do not install or download Mortal weights without explicit user approval.

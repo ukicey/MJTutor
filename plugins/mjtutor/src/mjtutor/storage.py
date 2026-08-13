@@ -590,7 +590,7 @@ class ReviewRepository:
         if not nickname:
             raise CoachError("nickname must not be empty")
         if koromo_player_id <= 0:
-            raise CoachError("koromo_player_id must be a positive integer")
+            raise CoachError("account_id must be a positive integer")
         now = _now()
         with closing(self._connect()) as connection:
             existing = connection.execute(
@@ -748,7 +748,7 @@ class ReviewRepository:
                 ).fetchone()
                 is None
             ):
-                raise CoachError(f"Koromo account is not bound: {account_id}")
+                raise CoachError(f"Mahjong Soul account is not bound: {account_id}")
             reviews_by_uuid = {
                 paipu_uuid: str(row["id"])
                 for row in connection.execute(
@@ -886,7 +886,7 @@ class ReviewRepository:
                 item for item in accounts if int(item["account_id"]) == account_id
             ]
             if not accounts:
-                raise CoachError(f"Koromo account is not bound: {account_id}")
+                raise CoachError(f"Mahjong Soul account is not bound: {account_id}")
         with closing(self._connect()) as connection:
             rows = connection.execute(
                 "SELECT * FROM koromo_sync_state ORDER BY account_id"

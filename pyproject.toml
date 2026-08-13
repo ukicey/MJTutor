@@ -1,7 +1,7 @@
 [project]
 name = "mjtutor"
-version = "1.0.0"
-description = "Local Mahjong Soul hanchan review tools for a Mortal-backed coaching agent"
+version = "1.0.1"
+description = "Mahjong Soul hanchan coaching with Mortal Web and local memory"
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [

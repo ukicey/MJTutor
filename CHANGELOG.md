@@ -7,6 +7,15 @@
 
 暂无。
 
+## [1.0.1] - 2026-08-13
+
+### 修复
+
+- 移除已经废弃的本地 Mortal、`mjai-reviewer` 配置检查和工具入口，配置页只展示
+  当前使用的 Mortal Web 流程。
+- 将面向用户的账号术语统一为“雀魂账号 ID”；牌谱屋只作为牌局数据来源，其
+  `account_id` 与雀魂账号 ID 是同一标识。
+
 ## [1.0.0] - 2026-08-13
 
 ### 新增
@@ -93,7 +102,8 @@
 
 - 从公开测试夹具中移除真实雀魂牌谱码。
 
-[Unreleased]: https://github.com/ukicey/MJTutor/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/ukicey/MJTutor/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/ukicey/MJTutor/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/ukicey/MJTutor/compare/v0.3.3...v1.0.0
 [0.3.3]: https://github.com/ukicey/MJTutor/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/ukicey/MJTutor/compare/v0.3.1...v0.3.2

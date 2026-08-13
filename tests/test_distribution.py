@@ -6,7 +6,8 @@ import tomllib
 from pathlib import Path
 
 import mjtutor
-from mjtutor.service import default_database_path
+from mjtutor.service import CoachService, default_database_path
+from mjtutor.storage import ReviewRepository
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN_ROOT = ROOT / "plugins" / "mjtutor"
@@ -90,6 +91,55 @@ def test_example_environment_matches_runtime_defaults() -> None:
     assert "~/.local/share/mjtutor" in example
     assert "./data inside this project" not in example
     assert "MJTUTOR_KOROMO_TOKEN" in example
+    assert "MJTUTOR_REVIEWER_BIN" not in example
+    assert "MJTUTOR_MORTAL_EXE" not in example
+    assert "MJTUTOR_MORTAL_CONFIG" not in example
+    assert "MJTUTOR_TIMEOUT_SECONDS" not in example
+
+
+def test_setup_only_reports_current_analysis_providers(tmp_path: Path) -> None:
+    setup = CoachService(
+        repository=ReviewRepository(tmp_path / "coach.sqlite3")
+    ).check_setup()
+
+    assert "reviewer" not in setup
+    assert set(setup["providers"]) == {"mortal_web", "koromo_catalog"}
+    assert setup["scope"]["source"] == "Mahjong Soul HTTPS paipu URLs"
+
+
+def test_plugin_does_not_expose_removed_local_mortal_tools() -> None:
+    server = (PLUGIN_ROOT / "src" / "mjtutor" / "mcp_server.py").read_text(
+        encoding="utf-8"
+    )
+    skill = (PLUGIN_ROOT / "skills" / "coach-mahjong-soul" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+
+    for removed_name in (
+        "inspect_majsoul_log",
+        "review_majsoul_hanchan",
+        "import_mjai_review",
+        "bind_koromo_account",
+    ):
+        assert f"def {removed_name}(" not in server
+        assert f"`{removed_name}`" not in skill
+    assert "def bind_majsoul_account(" in server
+    assert not (PLUGIN_ROOT / "src" / "mjtutor" / "reviewer.py").exists()
+
+
+def test_user_facing_account_terms_identify_mahjong_soul_account() -> None:
+    server = (PLUGIN_ROOT / "src" / "mjtutor" / "mcp_server.py").read_text(
+        encoding="utf-8"
+    )
+    skill = (PLUGIN_ROOT / "skills" / "coach-mahjong-soul" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+    chinese_readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "Mahjong Soul account ID" in server
+    assert "Mahjong Soul account ID" in skill
+    assert "雀魂账号 ID" in chinese_readme
+    assert "并不是另一套牌谱屋账号" in chinese_readme
 
 
 def test_mcp_server_reports_package_version(monkeypatch, tmp_path: Path) -> None:

@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from .errors import CoachError, ReviewerError
+from .errors import CoachError
 from .koromo_catalog import (
     DEFAULT_INITIAL_LOOKBACK_DAYS,
     DEFAULT_SYNC_INTERVAL_MINUTES,
@@ -15,7 +15,7 @@ from .koromo_catalog import (
     KoromoCatalogClient,
     KoromoVerificationRequired,
 )
-from .logs import LogMetadata, inspect_tenhou_v6_log
+from .logs import LogMetadata
 from .remote import (
     MortalWebProvider,
     mortal_model_catalog,
@@ -23,7 +23,6 @@ from .remote import (
     validate_mortal_model_tag,
     validate_mortal_web_language,
 )
-from .reviewer import MortalReviewer, ReviewerConfig, load_review_file
 from .storage import ReviewRepository
 
 ALLOWED_NOTE_KINDS = {"mistake", "style_preference", "question", "understood"}
@@ -43,32 +42,30 @@ class CoachService:
         self,
         *,
         repository: ReviewRepository | None = None,
-        reviewer: MortalReviewer | None = None,
         web_provider: MortalWebProvider | None = None,
         koromo_client: KoromoCatalogClient | None = None,
     ) -> None:
         self.repository = repository or ReviewRepository(default_database_path())
-        self.reviewer = reviewer or MortalReviewer(ReviewerConfig.from_env())
         self.web_provider = web_provider or MortalWebProvider()
         self.koromo_client = koromo_client or KoromoCatalogClient()
 
     def check_setup(self) -> dict[str, Any]:
         return {
-            "reviewer": self.reviewer.config.status(),
             "database": str(self.repository.database_path),
             "providers": {
-                "local_mortal": self.reviewer.config.status(),
                 "mortal_web": self.web_provider.status(),
                 "koromo_catalog": {
                     **self.koromo_client.status(),
                     "selected_source": True,
-                    "identity": "one local profile with confirmed Koromo accounts",
+                    "identity": (
+                        "one local profile with confirmed Mahjong Soul accounts"
+                    ),
                     "current_stage": "local incremental catalog and MCP App available",
                     "requires_majsoul_login": False,
                 },
             },
             "scope": {
-                "source": "Mahjong Soul exports or HTTPS paipu URLs",
+                "source": "Mahjong Soul HTTPS paipu URLs",
                 "seats": 4,
                 "game_length": "hanchan only",
                 "data_and_coach": "local only",
@@ -149,64 +146,15 @@ class CoachService:
             "summary": imported.review.summary(),
         }
 
-    def inspect_log(self, log_path: str) -> dict[str, Any]:
-        return inspect_tenhou_v6_log(log_path).as_dict()
-
-    def review_log(
-        self,
-        log_path: str,
-        *,
-        player_id: int,
-        kyokus: str | None = None,
-    ) -> dict[str, Any]:
-        result = self.reviewer.review(log_path, player_id=player_id, kyokus=kyokus)
-        review_id = make_review_id(result.metadata, player_id)
-        account_id = self.repository.save_review(
-            review_id=review_id,
-            metadata=result.metadata,
-            player_id=player_id,
-            review=result.review,
-        )
-        return {
-            "review_id": review_id,
-            "account_id": account_id,
-            "log": result.metadata.as_dict(),
-            "summary": result.review.summary(),
-        }
-
-    def import_review(
-        self,
-        review_path: str,
-        *,
-        source_log_path: str,
-        player_id: int,
-    ) -> dict[str, Any]:
-        if player_id not in range(4):
-            raise ReviewerError("player_id must be within 0-3")
-        metadata = inspect_tenhou_v6_log(source_log_path)
-        review = load_review_file(review_path, player_id=player_id)
-        review_id = make_review_id(metadata, player_id)
-        account_id = self.repository.save_review(
-            review_id=review_id,
-            metadata=metadata,
-            player_id=player_id,
-            review=review,
-        )
-        return {
-            "review_id": review_id,
-            "account_id": account_id,
-            "summary": review.summary(),
-        }
-
-    def bind_koromo_account(
+    def bind_majsoul_account(
         self,
         *,
         nickname: str,
-        koromo_player_id: int,
+        account_id: int,
     ) -> dict[str, Any]:
         return self.repository.bind_koromo_account(
             nickname=nickname,
-            koromo_player_id=koromo_player_id,
+            koromo_player_id=account_id,
         )
 
     def sync_koromo_games(
@@ -224,7 +172,7 @@ class CoachService:
                 item for item in accounts if int(item["account_id"]) == account_id
             ]
             if not accounts:
-                raise CoachError(f"Koromo account is not bound: {account_id}")
+                raise CoachError(f"Mahjong Soul account is not bound: {account_id}")
         lookback_days = max(1, min(int(lookback_days), 3650))
         max_pages = max(1, min(int(max_pages), 50))
         results = [
