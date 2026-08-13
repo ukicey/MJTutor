@@ -63,6 +63,24 @@ def test_review_feedback_and_observations_are_local_without_account(
     assert profile["explicit_note_counts"][0]["count"] == 1
 
 
+def test_review_preserves_mortal_report_url(tmp_path: Path) -> None:
+    repository = ReviewRepository(tmp_path / "coach.sqlite3")
+    metadata, review, _ = _review_fixture()
+    review_id = make_review_id(metadata, 0)
+    report_url = "https://mjai.ekyu.moe/report/synthetic.json"
+
+    repository.save_review(
+        review_id=review_id,
+        metadata=metadata,
+        player_id=0,
+        review=review,
+        report_json_url=report_url,
+    )
+
+    assert repository.get_review_metadata(review_id)["report_json_url"] == report_url
+    assert repository.list_reviews()[0]["report_json_url"] == report_url
+
+
 def test_local_settings_round_trip_and_delete(tmp_path: Path) -> None:
     repository = ReviewRepository(tmp_path / "coach.sqlite3")
 

@@ -18,6 +18,7 @@ from .koromo_catalog import (
 from .logs import LogMetadata
 from .remote import (
     MortalWebProvider,
+    make_report_viewer_url,
     mortal_model_catalog,
     validate_majsoul_url,
     validate_mortal_model_tag,
@@ -138,11 +139,14 @@ class CoachService:
             metadata=imported.metadata,
             player_id=imported.player_id,
             review=imported.review,
+            report_json_url=imported.report_json_url,
         )
+        viewer = self.review_viewer(review_id)
         return {
             "review_id": review_id,
             "source_log_url": source_log_url,
             "report_json_url": imported.report_json_url,
+            "viewer_url": viewer["viewer_url"],
             "account_id": account_id,
             "summary": imported.review.summary(),
         }
@@ -354,6 +358,7 @@ class CoachService:
                 "status": "already_reviewed",
                 "game": compact_game,
                 "review_id": game["review_id"],
+                "viewer": self.review_viewer(str(game["review_id"])),
                 "mortal_web": None,
                 "external_analysis_started": False,
             }
@@ -377,7 +382,43 @@ class CoachService:
         }
 
     def list_reviews(self, *, limit: int = 20) -> list[dict[str, Any]]:
-        return self.repository.list_reviews(limit=limit)
+        reviews = self.repository.list_reviews(limit=limit)
+        for review in reviews:
+            report_json_url = review.pop("report_json_url", None)
+            if report_json_url:
+                viewer_kind = "mortal_web"
+            else:
+                try:
+                    validate_majsoul_url(str(review["source_path"]))
+                except CoachError:
+                    viewer_kind = None
+                else:
+                    viewer_kind = "majsoul"
+            review["viewer_available"] = viewer_kind is not None
+            review["viewer_kind"] = viewer_kind
+        return reviews
+
+    def review_viewer(self, review_id: str) -> dict[str, Any]:
+        metadata = self.repository.get_review_metadata(review_id)
+        report_json_url = metadata.pop("report_json_url")
+        source_path = str(metadata.pop("source_path"))
+        try:
+            paipu_url = validate_majsoul_url(source_path)
+        except CoachError:
+            paipu_url = None
+        mortal_viewer_url = (
+            make_report_viewer_url(str(report_json_url)) if report_json_url else None
+        )
+        viewer_url = mortal_viewer_url or paipu_url
+        return {
+            **metadata,
+            "viewer_url": viewer_url,
+            "viewer_kind": (
+                "mortal_web" if mortal_viewer_url else "majsoul" if paipu_url else None
+            ),
+            "mortal_viewer_url": mortal_viewer_url,
+            "paipu_url": paipu_url,
+        }
 
     def review_summary(self, review_id: str, *, weak_limit: int = 10) -> dict[str, Any]:
         return self.repository.get_review(review_id).summary(weak_limit=weak_limit)

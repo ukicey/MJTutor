@@ -3,6 +3,7 @@ import pytest
 from mjtutor.errors import ReviewerError
 from mjtutor.remote import (
     MortalWebProvider,
+    make_report_viewer_url,
     mortal_model_catalog,
     normalize_report_json_url,
     validate_majsoul_url,
@@ -50,4 +51,15 @@ def test_converts_report_html_url_to_json() -> None:
     assert (
         normalize_report_json_url("https://mjai.ekyu.moe/report/example.html")
         == "https://mjai.ekyu.moe/report/example.json"
+    )
+
+
+def test_normalizes_killerducky_viewer_and_rebuilds_it() -> None:
+    viewer_url = "https://mjai.ekyu.moe/killerducky/?data=/report/example.json"
+
+    assert normalize_report_json_url(viewer_url) == (
+        "https://mjai.ekyu.moe/report/example.json"
+    )
+    assert make_report_viewer_url(viewer_url) == (
+        "https://mjai.ekyu.moe/killerducky/?data=%2Freport%2Fexample.json"
     )

@@ -7,6 +7,18 @@
 
 暂无。
 
+## [1.1.1] - 2026-08-13
+
+### 新增
+
+- 已保存的复盘现在可以重新打开可视化看牌页面；新导入的报告优先恢复 Mortal
+  看牌界面，旧记录自动回退到雀魂原牌谱，无需重新分析。
+
+### 修复
+
+- 直接打开牌局目录 HTML 或插件未返回目录数据时显示正确入口说明，不再暴露
+  `null.items` 一类内部错误。
+
 ## [1.1.0] - 2026-08-13
 
 ### 新增
@@ -115,7 +127,8 @@
 
 - 从公开测试夹具中移除真实雀魂牌谱码。
 
-[Unreleased]: https://github.com/ukicey/MJTutor/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/ukicey/MJTutor/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/ukicey/MJTutor/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/ukicey/MJTutor/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/ukicey/MJTutor/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/ukicey/MJTutor/compare/v0.3.3...v1.0.0

@@ -235,6 +235,12 @@ def test_mcp_app_resource_is_packaged_and_registered() -> None:
     assert "tools/call" in app
     assert "query_game_catalog" in app
     assert "sendFollowUpMessage" in app
+    assert "get_review_viewer" in server
+    assert 'game.reviewed ? "看牌" : "复盘"' in app
+    assert "不要重新提交 Mortal，并在侧边浏览器打开看牌页面" in app
+    assert 'window.location.protocol === "file:"' in app
+    assert "这是插件界面文件，不能直接打开" in app
+    assert "未收到牌局目录数据" in app
 
 
 def test_catalog_tool_keeps_game_rows_out_of_model_content(

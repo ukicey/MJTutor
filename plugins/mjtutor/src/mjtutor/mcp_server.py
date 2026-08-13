@@ -226,6 +226,16 @@ def list_reviews(limit: int = 20) -> list[dict[str, Any]]:
 
 
 @mcp.tool()
+def get_review_viewer(review_id: str) -> dict[str, Any]:
+    """Return the best visual replay URL for a locally stored review.
+
+    Prefer mortal_viewer_url when available. Older records may only have paipu_url;
+    opening it still restores a tile-by-tile replay without rerunning Mortal.
+    """
+    return service.review_viewer(review_id)
+
+
+@mcp.tool()
 def get_review_summary(review_id: str, weak_limit: int = 10) -> dict[str, Any]:
     """Return review totals and the largest Mortal disagreements."""
     return service.review_summary(review_id, weak_limit=weak_limit)

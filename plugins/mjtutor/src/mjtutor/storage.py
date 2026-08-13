@@ -12,7 +12,7 @@ from .koromo import extract_koromo_player_id, extract_paipu_uuid
 from .logs import LogMetadata
 from .models import ReviewDocument
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 LOCAL_PROFILE_ID = 1
 
 SCHEMA = """
@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS reviews (
     model_tag TEXT NOT NULL,
     created_at TEXT NOT NULL,
     report_json TEXT NOT NULL,
+    report_json_url TEXT,
     account_id INTEGER REFERENCES majsoul_accounts(account_id)
 );
 
@@ -200,6 +201,7 @@ class ReviewRepository:
                     migrated = True
                 else:
                     self._execute_schema(connection)
+                self._ensure_additive_columns(connection)
                 now = _now()
                 connection.execute(
                     """
@@ -224,6 +226,11 @@ class ReviewRepository:
         for statement in SCHEMA.split(";"):
             if statement.strip():
                 connection.execute(statement)
+
+    @classmethod
+    def _ensure_additive_columns(cls, connection: sqlite3.Connection) -> None:
+        if "report_json_url" not in cls._table_columns(connection, "reviews"):
+            connection.execute("ALTER TABLE reviews ADD COLUMN report_json_url TEXT")
 
     @staticmethod
     def _table_exists(connection: sqlite3.Connection, table: str) -> bool:
@@ -462,8 +469,9 @@ class ReviewRepository:
                 """
                 INSERT INTO reviews (
                     id, source_path, source_sha256, player_id, player_name,
-                    rule_display, model_tag, created_at, report_json, account_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    rule_display, model_tag, created_at, report_json,
+                    report_json_url, account_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     row["id"],
@@ -475,6 +483,7 @@ class ReviewRepository:
                     row["model_tag"],
                     row["created_at"],
                     row["report_json"],
+                    row.get("report_json_url"),
                     account_id,
                 ),
             )
@@ -999,6 +1008,7 @@ class ReviewRepository:
         metadata: LogMetadata,
         player_id: int,
         review: ReviewDocument,
+        report_json_url: str | None = None,
     ) -> int | None:
         player_name = metadata.player_names[player_id]
         now = _now()
@@ -1009,8 +1019,9 @@ class ReviewRepository:
                 """
                 INSERT INTO reviews (
                     id, source_path, source_sha256, player_id, player_name,
-                    rule_display, model_tag, created_at, report_json, account_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    rule_display, model_tag, created_at, report_json,
+                    report_json_url, account_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     source_path = excluded.source_path,
                     source_sha256 = excluded.source_sha256,
@@ -1020,6 +1031,9 @@ class ReviewRepository:
                     model_tag = excluded.model_tag,
                     created_at = excluded.created_at,
                     report_json = excluded.report_json,
+                    report_json_url = COALESCE(
+                        excluded.report_json_url, reviews.report_json_url
+                    ),
                     account_id = COALESCE(excluded.account_id, reviews.account_id)
                 """,
                 (
@@ -1032,6 +1046,7 @@ class ReviewRepository:
                     review.model_tag,
                     now,
                     payload,
+                    report_json_url,
                     account_id,
                 ),
             )
@@ -1143,7 +1158,8 @@ class ReviewRepository:
         with closing(self._connect()) as connection:
             rows = connection.execute(
                 """
-                SELECT r.id, r.source_path, r.player_id, r.player_name,
+                SELECT r.id, r.source_path, r.report_json_url,
+                       r.player_id, r.player_name,
                        r.rule_display, r.model_tag, r.created_at, r.account_id,
                        a.nickname AS account_nickname
                 FROM reviews AS r
@@ -1154,6 +1170,21 @@ class ReviewRepository:
                 (max(1, min(limit, 100)),),
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def get_review_metadata(self, review_id: str) -> dict[str, Any]:
+        with closing(self._connect()) as connection:
+            row = connection.execute(
+                """
+                SELECT id, source_path, report_json_url, player_id, player_name,
+                       rule_display, model_tag, created_at, account_id
+                FROM reviews
+                WHERE id = ?
+                """,
+                (review_id,),
+            ).fetchone()
+        if row is None:
+            raise ReviewNotFoundError(f"Review not found: {review_id}")
+        return dict(row)
 
     def get_review(self, review_id: str) -> ReviewDocument:
         with closing(self._connect()) as connection:

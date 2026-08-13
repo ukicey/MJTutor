@@ -221,6 +221,18 @@ def normalize_report_json_url(value: str) -> str:
     host = (parsed.hostname or "").casefold()
     if parsed.scheme != "https" or host not in REPORT_HOSTS:
         raise ReviewerError("Report URL must use HTTPS on mjai.ekyu.moe or gh.ekyu.moe")
+    if host == "mjai.ekyu.moe" and parsed.path.rstrip("/") == "/killerducky":
+        data_values = parse_qs(parsed.query).get("data")
+        if not data_values:
+            raise ReviewerError("Mortal viewer URL is missing its report data path")
+        data = data_values[0]
+        if data.startswith("/report/"):
+            parsed = urlparse(f"https://mjai.ekyu.moe{data}")
+        else:
+            parsed = urlparse(data)
+        host = (parsed.hostname or "").casefold()
+        if parsed.scheme != "https" or host not in REPORT_HOSTS:
+            raise ReviewerError("Mortal viewer data must reference a supported report")
     if "/report/" not in parsed.path:
         raise ReviewerError("Expected a Mortal Web /report/ URL")
     path = parsed.path
@@ -229,6 +241,15 @@ def normalize_report_json_url(value: str) -> str:
     elif not path.endswith(".json"):
         raise ReviewerError("Report URL must end in .html or .json")
     return urlunparse(("https", host, path, "", "", ""))
+
+
+def make_report_viewer_url(report_url: str) -> str:
+    """Return the KillerDucky viewer URL for a stored Mortal report."""
+    report_json_url = normalize_report_json_url(report_url)
+    parsed = urlparse(report_json_url)
+    data = parsed.path if parsed.hostname == "mjai.ekyu.moe" else report_json_url
+    query = urlencode({"data": data})
+    return f"https://mjai.ekyu.moe/killerducky/?{query}"
 
 
 def _extract_player_names(raw: dict[str, Any]) -> list[str]:

@@ -277,7 +277,7 @@
             <td><span class="rank rank-${game.player_rank}">${game.player_rank} 位</span></td>
             <td>${Number(game.player_score).toLocaleString("zh-CN")}</td>
             <td class="uuid" title="${escapeHtml(game.uuid)}">${reviewState}</td>
-            <td><button type="button" data-review="${escapeHtml(game.uuid)}">复盘</button></td>
+            <td><button type="button" data-review="${escapeHtml(game.uuid)}">${game.reviewed ? "看牌" : "复盘"}</button></td>
           </tr>`;
         }).join("");
         $("empty").hidden = state.items.length !== 0;
@@ -295,6 +295,11 @@
         setBusy(true);
         try {
           const result = catalogData(await callTool("query_game_catalog", filters()));
+          if (!result) {
+            throw new Error(
+              "未收到牌局目录数据。请从 MJTutor 插件中打开牌局目录。"
+            );
+          }
           render(result);
         } catch (error) {
           setNotice(`目录读取失败：${error?.message || String(error)}`);
@@ -331,7 +336,8 @@
           const game = result.game || {};
           let prompt;
           if (result.status === "already_reviewed") {
-            prompt = `用 MJTutor 继续复盘我在牌局目录中选择的这一局。已有 review_id：${result.review_id}。请直接读取本地复盘，不要重新提交 Mortal。`;
+            const viewer = result.viewer || {};
+            prompt = `用 MJTutor 继续复盘我在牌局目录中选择的这一局。已有 review_id：${result.review_id}。请直接读取本地复盘，不要重新提交 Mortal，并在侧边浏览器打开看牌页面：${viewer.viewer_url || game.paipu_url || ""}。`;
           } else if (result.status === "model_preference_required") {
             prompt = `我想复盘牌局目录中选择的这一局，但还没有设置默认 Mortal 模型。请简要介绍当前可用模型并帮我选择；确定后保存为默认并继续准备这局。牌谱 UUID：${game.uuid || uuid}。`;
           } else {
@@ -395,12 +401,17 @@
       $("prev").addEventListener("click", () => { state.offset = Math.max(0, state.offset - PAGE_SIZE); loadPage(); });
       $("next").addEventListener("click", () => { state.offset += PAGE_SIZE; loadPage(); });
 
-      const initialCatalog = catalogData(window.openai?.toolResponseMetadata) || catalogData(window.openai?.toolOutput);
-      if (initialCatalog?.items) {
-        setAccounts(initialCatalog.sync_status);
-        render(initialCatalog);
+      if (window.location.protocol === "file:" && window.parent === window) {
+        $("status").textContent = "未连接 MJTutor 插件";
+        setNotice("这是插件界面文件，不能直接打开。请在 Codex 新任务中说“打开我的 MJTutor 牌局目录”。");
       } else {
-        refreshStatus().then(loadPage).catch((error) => setNotice(error?.message || String(error)));
+        const initialCatalog = catalogData(window.openai?.toolResponseMetadata) || catalogData(window.openai?.toolOutput);
+        if (initialCatalog?.items) {
+          setAccounts(initialCatalog.sync_status);
+          render(initialCatalog);
+        } else {
+          refreshStatus().then(loadPage).catch((error) => setNotice(error?.message || String(error)));
+        }
       }
     </script>
   </body>

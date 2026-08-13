@@ -210,6 +210,53 @@ def test_sync_marks_game_reviewed_when_review_was_imported_first(
     prepared = service.prepare_selected_game_review(parsed.uuid)
     assert prepared["status"] == "already_reviewed"
     assert prepared["mortal_web"] is None
+    assert prepared["viewer"]["viewer_kind"] == "majsoul"
+    assert prepared["viewer"]["viewer_url"] == metadata.path
+
+
+def test_saved_report_prefers_mortal_visual_viewer(tmp_path: Path) -> None:
+    repository = ReviewRepository(tmp_path / "coach.sqlite3")
+    parsed = parse_koromo_game(_raw_game(), account_id=20155424)
+    metadata = LogMetadata(
+        path=parsed.as_dict(account_id=20155424)["paipu_url"],
+        sha256="mortal-report",
+        format="mortal-web-report-json",
+        player_names=["Orangeese", "B", "C", "D"],
+        rule_display="Gold South",
+        round_count=8,
+        is_hanchan=True,
+        is_four_player=True,
+        reference="https://mjai.ekyu.moe/report/synthetic.json",
+    )
+    review = ReviewDocument.from_json(
+        {
+            "review": {
+                "model_tag": "4.1b",
+                "kyokus": [],
+                "total_reviewed": 0,
+                "total_matches": 0,
+            }
+        },
+        player_id=0,
+    )
+    repository.save_review(
+        review_id="saved-mortal-review",
+        metadata=metadata,
+        player_id=0,
+        review=review,
+        report_json_url=metadata.reference,
+    )
+
+    viewer = CoachService(repository=repository).review_viewer("saved-mortal-review")
+    listed = CoachService(repository=repository).list_reviews()
+
+    assert viewer["viewer_kind"] == "mortal_web"
+    assert viewer["viewer_url"] == (
+        "https://mjai.ekyu.moe/killerducky/?data=%2Freport%2Fsynthetic.json"
+    )
+    assert viewer["paipu_url"] == metadata.path
+    assert listed[0]["viewer_available"] is True
+    assert listed[0]["viewer_kind"] == "mortal_web"
 
 
 def test_web_review_requires_preference_then_uses_default(tmp_path: Path) -> None:
