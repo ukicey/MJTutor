@@ -1,0 +1,25 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="32"
+  height="32"
+  viewBox="0 0 32 32"
+  fill="none"
+>
+  <title>MJTutor composer icon</title>
+  <rect x="1" y="1" width="30" height="30" rx="7" fill="#16735B" />
+  <path
+    fill="#F7F8F6"
+    d="M10 6H22C24.2091 6 26 7.79086 26 10V19C26 21.2091 24.2091 23 22 23H17.75L13 27V23H10C7.79086 23 6 21.2091 6 19V10C6 7.79086 7.79086 6 10 6Z"
+  />
+  <path
+    stroke="#16735B"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="1.8"
+    d="M10.5 14.5H15.5M15.5 14.5L19 11M15.5 14.5H20M15.5 14.5L19 18"
+  />
+  <circle cx="10.5" cy="14.5" r="1.35" fill="#16735B" />
+  <circle cx="19.5" cy="10.5" r="1.5" fill="#16735B" />
+  <circle cx="20.8" cy="14.5" r="1.8" fill="#D7A53C" />
+  <circle cx="19.5" cy="18.5" r="1.5" fill="#16735B" />
+</svg>

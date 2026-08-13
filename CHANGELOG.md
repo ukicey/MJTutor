@@ -7,6 +7,12 @@
 
 暂无。
 
+## [0.3.1] - 2026-08-13
+
+### 新增
+
+- 增加 MJTutor 品牌 Logo 和适配 Codex 输入框的小尺寸插件图标。
+
 ## [0.3.0] - 2026-08-12
 
 ### 新增
@@ -61,7 +67,8 @@
 
 - 从公开测试夹具中移除真实雀魂牌谱码。
 
-[Unreleased]: https://github.com/ukicey/MJTutor/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/ukicey/MJTutor/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/ukicey/MJTutor/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/ukicey/MJTutor/compare/9dd7d5b...v0.3.0
 [0.2.0]: https://github.com/ukicey/MJTutor/compare/f4946eb...9dd7d5b
 [0.1.0]: https://github.com/ukicey/MJTutor/tree/f4946eb

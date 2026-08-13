@@ -1,4 +1,8 @@
-# MJTutor
+<p align="center">
+  <img src="plugins/mjtutor/assets/logo.svg" alt="MJTutor" width="120">
+</p>
+
+<h1 align="center">MJTutor</h1>
 
 <p align="center">
   <a href="README.md">简体中文</a> |

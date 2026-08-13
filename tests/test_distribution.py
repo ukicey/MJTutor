@@ -29,6 +29,23 @@ def test_plugin_starter_prompts_fit_host_limits() -> None:
     assert all(len(prompt) <= 128 for prompt in prompts)
 
 
+def test_plugin_brand_assets_are_packaged() -> None:
+    manifest = json.loads(
+        (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
+    interface = manifest["interface"]
+    assert interface["brandColor"] == "#16735B"
+    for field, dimensions in (("composerIcon", (32, 32)), ("logo", (512, 512))):
+        asset = PLUGIN_ROOT / interface[field].removeprefix("./")
+        assert asset.is_file()
+        png = asset.read_bytes()
+        assert png.startswith(b"\x89PNG\r\n\x1a\n")
+        assert (
+            int.from_bytes(png[16:20], "big"),
+            int.from_bytes(png[20:24], "big"),
+        ) == dimensions
+
+
 def test_example_environment_matches_runtime_defaults() -> None:
     example = (ROOT / ".env.example").read_text(encoding="utf-8")
     assert "~/.local/share/mjtutor" in example
