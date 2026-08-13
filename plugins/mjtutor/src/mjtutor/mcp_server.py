@@ -246,6 +246,26 @@ def get_decision(
 
 
 @mcp.tool()
+def analyze_tile_efficiency(
+    review_id: str,
+    decision_id: str,
+    discards: list[str] | None = None,
+) -> dict[str, Any]:
+    """Calculate deterministic shanten, effective draws, and shape waits.
+
+    Use after get_decision when explaining exact tile efficiency. Pass the discards
+    relevant to the question to keep the result focused. Availability counts mean
+    copies not visible to the player, not tiles known to remain in the live wall.
+    Mortal Q values are included separately and do not explain its policy choice.
+    """
+    return service.tile_efficiency(
+        review_id,
+        decision_id,
+        discards=discards,
+    )
+
+
+@mcp.tool()
 def record_coaching_note(
     review_id: str,
     decision_id: str,

@@ -24,6 +24,7 @@ from .remote import (
     validate_mortal_web_language,
 )
 from .storage import ReviewRepository
+from .tile_efficiency import analyze_tile_efficiency
 
 ALLOWED_NOTE_KINDS = {"mistake", "style_preference", "question", "understood"}
 ALLOWED_PROFILE_KINDS = ALLOWED_NOTE_KINDS | {
@@ -390,6 +391,19 @@ class CoachService:
     ) -> dict[str, Any]:
         review = self.repository.get_review(review_id)
         return review.get_decision(decision_id).as_dict(candidate_limit=candidate_limit)
+
+    def tile_efficiency(
+        self,
+        review_id: str,
+        decision_id: str,
+        *,
+        discards: list[str] | None = None,
+    ) -> dict[str, Any]:
+        review = self.repository.get_review(review_id)
+        return analyze_tile_efficiency(
+            review.get_decision(decision_id),
+            discards=discards,
+        )
 
     def record_note(
         self,

@@ -142,6 +142,20 @@ def test_user_facing_account_terms_identify_mahjong_soul_account() -> None:
     assert "并不是另一套牌谱屋账号" in chinese_readme
 
 
+def test_skill_rechecks_async_turnstile_state_before_handoff() -> None:
+    skill = (PLUGIN_ROOT / "skills" / "coach-mahjong-soul" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "first review form under `Review your game` or `检讨牌谱`" in skill
+    assert "ignore the later `Dispatch a private room` or `派遣个室` form" in skill
+    assert "up to 10 seconds at 500-1000 ms intervals" in skill
+    assert "button's live `disabled` property" in skill
+    assert "Immediately before deciding or clicking" in skill
+    assert "this state alone does not reveal whether Turnstile" in skill
+    assert "involve the user only if the review button remains unavailable" in skill
+
+
 def test_mcp_server_reports_package_version(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("MJTUTOR_DATA_DIR", os.fspath(tmp_path))
     from mjtutor import mcp_server
@@ -184,8 +198,31 @@ def test_default_database_lives_outside_plugin(
 def test_launcher_uses_uv_and_external_data_directory() -> None:
     launcher = (PLUGIN_ROOT / "bin" / "mjtutor-mcp").read_text(encoding="utf-8")
     assert "MJTUTOR_DATA_DIR" in launcher
+    assert '--with "mahjong>=2.0,<3"' in launcher
     assert '--with "mcp>=2.0,<3"' in launcher
     assert "--isolated" in launcher
+    assert "--no-project" in launcher
+
+
+def test_tile_efficiency_tool_and_skill_guard_are_packaged() -> None:
+    server = (PLUGIN_ROOT / "src" / "mjtutor" / "mcp_server.py").read_text(
+        encoding="utf-8"
+    )
+    skill = (PLUGIN_ROOT / "skills" / "coach-mahjong-soul" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "def analyze_tile_efficiency(" in server
+    assert "call `analyze_tile_efficiency`" in skill
+    assert "Never reconstruct an acceptance count" in skill
+
+
+def test_readmes_describe_deterministic_tile_efficiency() -> None:
+    assert "确定性牌形算法" in (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "deterministic hand-shape engine" in (ROOT / "README.en.md").read_text(
+        encoding="utf-8"
+    )
+    assert "決定論的な牌姿計算" in (ROOT / "README.ja.md").read_text(encoding="utf-8")
 
 
 def test_mcp_app_resource_is_packaged_and_registered() -> None:

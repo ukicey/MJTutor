@@ -26,8 +26,10 @@ Mortal as a mistake.
 - Review four-player Mahjong Soul hanchan directly in a Codex conversation.
 - Use Mortal Web for remote analysis without running Mortal models locally.
 - Choose and save a default Mortal model for future reviews.
-- Explain key decisions using candidates, Q values, shanten, scores, rivers,
-  melds, and visible tiles.
+- Calculate shanten, effective draws, unseen-copy counts, and tenpai
+  continuations with a deterministic hand-shape engine, separately from
+  Mortal candidates and Q values.
+- Explain key decisions using scores, rivers, melds, and visible tiles.
 - Turn explicit feedback and recurring patterns across games into a long-term
   profile that can be confirmed, corrected, or forgotten.
 - Sync public games from Koromo and select games from an interactive catalog.

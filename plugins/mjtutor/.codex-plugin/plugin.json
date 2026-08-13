@@ -1,6 +1,6 @@
 {
   "name": "mjtutor",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Evidence-backed Mahjong Soul hanchan coaching with Mortal Web and local memory.",
   "author": {
     "name": "ukicey",
@@ -20,12 +20,13 @@
   "interface": {
     "displayName": "MJTutor",
     "shortDescription": "用 Mortal 证据复盘雀魂四麻半庄",
-    "longDescription": "MJTutor 把 Mortal Web 的结构化判断交给 Codex，结合牌河、分数、可见牌和本地长期记忆，进行可以追问、可以纠正的雀魂四麻半庄复盘。Mortal Web 保留为可见侧屏，并由用户人工完成 Turnstile。",
+    "longDescription": "MJTutor 把 Mortal Web 的结构化判断交给 Codex，结合确定性牌效、牌河、分数、可见牌和本地长期记忆，进行可以追问、可以纠正的雀魂四麻半庄复盘。",
     "developerName": "ukicey",
     "category": "Education & Research",
     "capabilities": [
       "Mahjong Soul hanchan review",
       "Mortal Web report import",
+      "Deterministic tile-efficiency analysis",
       "Local coaching memory",
       "Interactive Koromo game catalog"
     ],

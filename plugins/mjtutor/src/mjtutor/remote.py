@@ -120,9 +120,13 @@ class MortalWebProvider:
             },
             "next_step": (
                 "Open submission_url and set the requested model. If the user asked "
-                "to start this review and Turnstile has already completed, submit "
-                "the enabled form. Otherwise wait for the user's verification. Then "
-                "pass the generated /report/ JSON or HTML URL to "
+                "to start this review, inspect only the first review form's submit "
+                "button. Treat its initial disabled state as transient and poll the "
+                "current URL plus its live disabled property every 500-1000 ms for up "
+                "to 10 seconds. Recheck both immediately before acting. Submit once "
+                "if enabled; otherwise hand off the visible page without claiming why "
+                "it remains disabled. Then pass the generated /report/ JSON or HTML "
+                "URL to "
                 "import_mortal_web_report."
             ),
             "automatic_submission": False,

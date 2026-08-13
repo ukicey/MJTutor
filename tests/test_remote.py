@@ -18,6 +18,9 @@ def test_prepares_prefilled_mortal_web_review() -> None:
     assert result["status"] == "awaiting_human_verification"
     assert result["automatic_submission"] is False
     assert result["submission_url"].startswith("https://mjai.ekyu.moe/zh-cn.html?url=")
+    assert "only the first review form's submit button" in result["next_step"]
+    assert "every 500-1000 ms for up to 10 seconds" in result["next_step"]
+    assert "Recheck both immediately before acting" in result["next_step"]
 
 
 def test_exposes_current_mortal_model_catalog() -> None:

@@ -41,12 +41,13 @@ gameplay analysis.
 1. Call `check_setup` before the first analysis in a task. Report unavailable services or local data errors only when they affect the requested action.
 2. For a paipu URL, call `prepare_mortal_web_review`. When the user wants to browse or choose from ranked-game history, call `open_game_catalog` instead of narrating a long list in chat.
 3. If preparation returns `model_preference_required`, briefly compare the available models and help the user choose before continuing. Save a default only when the user chooses it as their ongoing preference; pass an explicit `model_tag` without saving for a one-off choice.
-4. For Mortal Web, open the returned submission URL in the user's selected browser. Set the Mortal network control to `requested_settings.model_tag` and verify the visible selection; the URL itself does not preselect this field. When the latest user request explicitly asks to review that paipu or selected game, it authorizes submitting that paipu to Mortal Web. Inspect the review submit button after filling the settings: if Turnstile has completed automatically and the button is enabled, click it once and wait for the report page; if the page has already navigated to a report, do not submit again. If verification still requires user interaction, ask the user to complete it and continue from the existing page afterward; never bypass, outsource, or solve it. Do not submit when the user only asked to open, inspect, prepare, or test the workflow. After submission, call `import_mortal_web_report` with the generated report URL.
+4. For Mortal Web, open the returned submission URL in the user's selected browser and make the page visible. Set the Mortal network control to `requested_settings.model_tag` and verify the visible selection; the URL itself does not preselect this field. When the latest user request explicitly asks to review that paipu or selected game, it authorizes submitting that paipu to Mortal Web. Scope all submit-button checks to the first review form under `Review your game` or `检讨牌谱`; ignore the later `Dispatch a private room` or `派遣个室` form even though its button has the same label. Treat `[disabled]` in the first DOM snapshot as an initial loading state, not proof that Turnstile requires user action. After the document loads and settings are filled, poll for up to 10 seconds at 500-1000 ms intervals. At each poll, read the current URL and the review form button's live `disabled` property: stop when the page reaches `/report/` or that button becomes enabled. Immediately before deciding or clicking, read both values once more. If the page is already on a report, do not submit again. If the review button is enabled, click it once and wait for the report page. Only hand the visible page to the user when the same button remains disabled after the final check; say that it has not become enabled yet, because this state alone does not reveal whether Turnstile is still loading or needs interaction. Never bypass, outsource, or solve verification. Do not submit when the user only asked to open, inspect, prepare, or test the workflow. After submission, call `import_mortal_web_report` with the generated report URL.
 5. Begin with at most three high-value disagreements from `get_review_summary`.
 6. Call `get_decision` before explaining any specific choice. Do not reason from the compact summary alone.
-7. Let the user choose the depth: short conclusion first, then expand tile efficiency, value, defense, placement, and alternatives as needed.
-8. Record feedback with `record_coaching_note` only when the user explicitly confirms a mistake, preference, question, or understanding.
-9. Use `get_local_profile` for cross-game coaching. Fetch full observations or decisions only when the current question needs them.
+7. Before making an exact claim about shanten, effective tiles, acceptance count, waits, or shape decomposition, call `analyze_tile_efficiency` for the relevant discard candidates. Treat its hand-shape result and Mortal's Q ranking as separate evidence: a wider deterministic acceptance does not prove the action has higher policy value, and a higher Mortal Q value does not reveal its reason. Never reconstruct an acceptance count or label a discard as breaking a shape from conversational calculation alone.
+8. Let the user choose the depth: short conclusion first, then expand tile efficiency, value, defense, placement, and alternatives as needed.
+9. Record feedback with `record_coaching_note` only when the user explicitly confirms a mistake, preference, question, or understanding.
+10. Use `get_local_profile` for cross-game coaching. Fetch full observations or decisions only when the current question needs them.
 
 ## Analysis Model Preference
 
@@ -69,7 +70,7 @@ gameplay analysis.
 - Call `bind_majsoul_account` only after the user confirms the Mahjong Soul account ID belongs to them. Never claim a same-named search result automatically.
 - Use `open_game_catalog` for routine browsing, filtering, syncing, and selection. Use `list_koromo_games` only when the conversation needs a compact page of metadata.
 - Opening the catalog may call `sync_koromo_games` after a minimum interval. This is opportunistic incremental sync, not a resident background process. Manual refresh may use `force=true`.
-- A selected game only calls `prepare_selected_game_review`; it does not submit to Mortal or start analysis. Continue to require the user's Turnstile step.
+- A selected game only calls `prepare_selected_game_review`; it does not itself submit to Mortal or start analysis. When the user then asks to review it, continue with step 4; involve the user only if the review button remains unavailable after the bounded wait.
 - If sync reports `verification_required`, keep serving the local cache and explain that Koromo currently requires its browser challenge or a site-owner access key. Never solve, scrape around, or bypass that gate.
 - A Mahjong Soul paipu viewer suffix may add account provenance when it decodes to a confirmed Mahjong Soul account ID. A review without account provenance still belongs to the local profile and needs no player binding.
 - Koromo is a third-party, delayed, potentially incomplete catalog. Its Gold, Jade, and Throne ranked coverage does not prove that missing games did not occur.
@@ -97,6 +98,7 @@ Keep these claim types separate internally:
 
 - `牌谱事实`: visible state and actual action from the log.
 - `Mortal判断`: candidates, order, Q values, probabilities, shanten, and model tag returned by the tool.
+- `确定性牌形`: shanten, effective tiles, unseen-copy counts, continuations, and shape waits returned by `analyze_tile_efficiency`; these do not include value, yaku, furiten, defense, or placement.
 - `规则推导`: deterministic mahjong reasoning that can be verified from the state.
 - `教练推测`: a plausible reason Mortal may prefer an action, not Mortal's stated thought process.
 

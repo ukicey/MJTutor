@@ -67,6 +67,13 @@ def build_parser() -> argparse.ArgumentParser:
     decision_parser.add_argument("review_id")
     decision_parser.add_argument("decision_id")
     decision_parser.add_argument("--candidates", type=int, default=8)
+
+    efficiency_parser = commands.add_parser(
+        "tile-efficiency", help="calculate exact discard shape and effective draws"
+    )
+    efficiency_parser.add_argument("review_id")
+    efficiency_parser.add_argument("decision_id")
+    efficiency_parser.add_argument("--discard", action="append", dest="discards")
     return parser
 
 
@@ -99,6 +106,11 @@ def main() -> None:
         ),
         "decision": lambda: service.decision(
             args.review_id, args.decision_id, candidate_limit=args.candidates
+        ),
+        "tile-efficiency": lambda: service.tile_efficiency(
+            args.review_id,
+            args.decision_id,
+            discards=args.discards,
         ),
     }
     try:

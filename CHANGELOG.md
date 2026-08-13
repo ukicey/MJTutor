@@ -7,6 +7,19 @@
 
 暂无。
 
+## [1.1.0] - 2026-08-13
+
+### 新增
+
+- 新增基于成熟 `mahjong` 算法库的确定性牌效分析，可逐个候选切牌计算向听、有效牌、
+  未见枚数、后续切牌与牌形待牌，并与 Mortal 的 Q 值证据分开呈现。
+
+### 修复
+
+- Mortal Web 页面加载后短暂轮询牌谱检讨表单的提交按钮，并在操作前复查页面与
+  按钮状态，避免把 Turnstile 的首帧临时禁用误判为必须人工验证，也避免混淆页面
+  下方的同名按钮。
+
 ## [1.0.1] - 2026-08-13
 
 ### 修复
@@ -102,7 +115,8 @@
 
 - 从公开测试夹具中移除真实雀魂牌谱码。
 
-[Unreleased]: https://github.com/ukicey/MJTutor/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/ukicey/MJTutor/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/ukicey/MJTutor/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/ukicey/MJTutor/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/ukicey/MJTutor/compare/v0.3.3...v1.0.0
 [0.3.3]: https://github.com/ukicey/MJTutor/compare/v0.3.2...v0.3.3

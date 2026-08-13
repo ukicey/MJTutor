@@ -17,6 +17,8 @@ fi
 exec uv run \
   --quiet \
   --isolated \
+  --no-project \
   --python ">=3.11" \
+  --with "mahjong>=2.0,<3" \
   --with "mcp>=2.0,<3" \
   python -m mjtutor.mcp_server
