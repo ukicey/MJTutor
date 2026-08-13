@@ -7,6 +7,19 @@
 
 暂无。
 
+## [1.0.0] - 2026-08-13
+
+### 新增
+
+- 增加独立于牌风画像的默认 Mortal 分析模型偏好，可在对话中查看、设置或清除。
+- 首次复盘尚未选择默认模型时，由教练介绍当前可用模型并协助选择。
+
+### 变更
+
+- 打开 Mortal Web 后按已保存偏好选择并核对模型，避免网页默认值覆盖本地设置。
+- 用户明确要求复盘且 Turnstile 自动通过时，自动提交 Mortal Web 表单并等待报告。
+- 将插件安装、远程分析、牌局目录、本地画像和分析偏好作为首个稳定版能力发布。
+
 ## [0.3.3] - 2026-08-13
 
 ### 变更
@@ -80,7 +93,8 @@
 
 - 从公开测试夹具中移除真实雀魂牌谱码。
 
-[Unreleased]: https://github.com/ukicey/MJTutor/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/ukicey/MJTutor/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/ukicey/MJTutor/compare/v0.3.3...v1.0.0
 [0.3.3]: https://github.com/ukicey/MJTutor/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/ukicey/MJTutor/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/ukicey/MJTutor/compare/v0.3.0...v0.3.1

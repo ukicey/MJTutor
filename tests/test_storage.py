@@ -63,6 +63,19 @@ def test_review_feedback_and_observations_are_local_without_account(
     assert profile["explicit_note_counts"][0]["count"] == 1
 
 
+def test_local_settings_round_trip_and_delete(tmp_path: Path) -> None:
+    repository = ReviewRepository(tmp_path / "coach.sqlite3")
+
+    assert repository.get_local_setting("default_mortal_model") is None
+    saved = repository.set_local_setting("default_mortal_model", "4.1c")
+
+    assert saved["value"] == "4.1c"
+    assert repository.get_local_setting("default_mortal_model") == "4.1c"
+    assert repository.delete_local_setting("default_mortal_model") is True
+    assert repository.delete_local_setting("default_mortal_model") is False
+    assert repository.get_local_setting("default_mortal_model") is None
+
+
 def test_account_binding_backfills_provenance_and_tracks_nicknames(
     tmp_path: Path,
 ) -> None:

@@ -135,8 +135,14 @@ def test_sync_caches_filters_and_prepares_selected_game(tmp_path: Path) -> None:
     assert synced["accounts"][0]["inserted"] == 1
     assert listed["total"] == 1
     assert listed["items"][0]["account_nickname"] == "Orangeese"
+    assert prepared["status"] == "model_preference_required"
     assert prepared["external_analysis_started"] is False
-    assert prepared["mortal_web"]["status"] == "awaiting_human_verification"
+    assert prepared["mortal_web"]["status"] == "model_preference_required"
+
+    service.set_default_mortal_model("4.1c")
+    prepared = service.prepare_selected_game_review(parsed.uuid)
+    assert prepared["status"] == "awaiting_human_verification"
+    assert prepared["mortal_web"]["requested_settings"]["model_tag"] == "4.1c"
 
     repeated = service.sync_koromo_games(force=True, max_pages=1)
     assert repeated["accounts"][0]["inserted"] == 0
@@ -204,3 +210,26 @@ def test_sync_marks_game_reviewed_when_review_was_imported_first(
     prepared = service.prepare_selected_game_review(parsed.uuid)
     assert prepared["status"] == "already_reviewed"
     assert prepared["mortal_web"] is None
+
+
+def test_web_review_requires_preference_then_uses_default(tmp_path: Path) -> None:
+    repository = ReviewRepository(tmp_path / "coach.sqlite3")
+    service = CoachService(repository=repository)
+    paipu_url = "https://game.maj-soul.com/1/?paipu=synthetic-test-hanchan"
+
+    first = service.prepare_web_review(paipu_url)
+    assert first["status"] == "model_preference_required"
+    assert first["majsoul_log_url"] == paipu_url
+    assert "submission_url" not in first
+
+    saved = service.set_default_mortal_model("4.1a")
+    assert saved["default_mortal_model"] == "4.1a"
+    prepared = service.prepare_web_review(paipu_url)
+    assert prepared["requested_settings"]["model_tag"] == "4.1a"
+
+    overridden = service.prepare_web_review(paipu_url, model_tag="3.0")
+    assert overridden["requested_settings"]["model_tag"] == "3.0"
+    assert service.analysis_preferences()["default_mortal_model"] == "4.1a"
+
+    cleared = service.clear_default_mortal_model()
+    assert cleared["default_mortal_model"] is None

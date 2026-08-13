@@ -40,13 +40,28 @@ gameplay analysis.
 
 1. Call `check_setup` before the first analysis in a task. Report missing local components plainly.
 2. For a local export, call `inspect_majsoul_log` and accept only four-player hanchan logs. For a paipu URL, call `prepare_mortal_web_review`. When the user wants to browse or choose from ranked-game history, call `open_game_catalog` instead of narrating a long list in chat.
-3. For Mortal Web, open the returned submission URL in the user's selected browser. Ask the user to complete Turnstile; never bypass, outsource, or automate it. After submission, call `import_mortal_web_report` with the generated report URL.
-4. For local Mortal, ask for or infer the East-1 seat only when it is not already known, then call `review_majsoul_hanchan`. Never choose the target seat from a nickname alone.
-5. Begin with at most three high-value disagreements from `get_review_summary`.
-6. Call `get_decision` before explaining any specific choice. Do not reason from the compact summary alone.
-7. Let the user choose the depth: short conclusion first, then expand tile efficiency, value, defense, placement, and alternatives as needed.
-8. Record feedback with `record_coaching_note` only when the user explicitly confirms a mistake, preference, question, or understanding.
-9. Use `get_local_profile` for cross-game coaching. Fetch full observations or decisions only when the current question needs them.
+3. If preparation returns `model_preference_required`, briefly compare the available models and help the user choose before continuing. Save a default only when the user chooses it as their ongoing preference; pass an explicit `model_tag` without saving for a one-off choice.
+4. For Mortal Web, open the returned submission URL in the user's selected browser. Set the Mortal network control to `requested_settings.model_tag` and verify the visible selection; the URL itself does not preselect this field. When the latest user request explicitly asks to review that paipu or selected game, it authorizes submitting that paipu to Mortal Web. Inspect the review submit button after filling the settings: if Turnstile has completed automatically and the button is enabled, click it once and wait for the report page; if the page has already navigated to a report, do not submit again. If verification still requires user interaction, ask the user to complete it and continue from the existing page afterward; never bypass, outsource, or solve it. Do not submit when the user only asked to open, inspect, prepare, or test the workflow. After submission, call `import_mortal_web_report` with the generated report URL.
+5. For local Mortal, ask for or infer the East-1 seat only when it is not already known, then call `review_majsoul_hanchan`. Never choose the target seat from a nickname alone.
+6. Begin with at most three high-value disagreements from `get_review_summary`.
+7. Call `get_decision` before explaining any specific choice. Do not reason from the compact summary alone.
+8. Let the user choose the depth: short conclusion first, then expand tile efficiency, value, defense, placement, and alternatives as needed.
+9. Record feedback with `record_coaching_note` only when the user explicitly confirms a mistake, preference, question, or understanding.
+10. Use `get_local_profile` for cross-game coaching. Fetch full observations or decisions only when the current question needs them.
+
+## Analysis Model Preference
+
+- Treat the default Mortal model as an explicit local setting, not as a player trait or
+  coaching-profile item. Never infer it from gameplay.
+- When a review is requested or the user asks about setup or preferences and no default
+  exists, introduce the five choices concisely and recommend based on the user's goal:
+  `4.1b` is the general-purpose starting point, `4.1c` emphasizes first place, `4.1a`
+  emphasizes avoiding fourth, `4.0` is mainly for comparison with older reports, and
+  `3.0` is more human-like and gentler but weaker.
+- Ask one natural choice question. Do not repeat the catalog once a default exists, and
+  do not narrate the storage or policy behind the choice unless asked.
+- Use `get_analysis_preferences`, `set_default_mortal_model`, and
+  `clear_default_mortal_model` when the user views, changes, or clears the setting.
 
 ## Local Identity
 

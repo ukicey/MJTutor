@@ -24,6 +24,18 @@ def build_parser() -> argparse.ArgumentParser:
     commands.add_parser(
         "profile", help="show local accounts and compact coaching memory"
     )
+    commands.add_parser(
+        "preferences", help="show local analysis preferences and Mortal models"
+    )
+    model_parser = commands.add_parser(
+        "model-default", help="set the default Mortal Web model"
+    )
+    model_parser.add_argument(
+        "model_tag", choices=("4.1c", "4.1b", "4.1a", "4.0", "3.0")
+    )
+    commands.add_parser(
+        "model-default-clear", help="clear the default Mortal Web model"
+    )
 
     inspect_parser = commands.add_parser(
         "inspect", help="validate a Mahjong Soul export"
@@ -42,9 +54,7 @@ def build_parser() -> argparse.ArgumentParser:
     web_parser.add_argument(
         "--language", default="zh-CN", choices=("zh-CN", "en", "ja", "ko")
     )
-    web_parser.add_argument(
-        "--model", default="4.1b", choices=("4.1c", "4.1b", "4.1a", "4.0", "3.0")
-    )
+    web_parser.add_argument("--model", choices=("4.1c", "4.1b", "4.1a", "4.0", "3.0"))
     web_parser.add_argument("--kyokus")
 
     web_import_parser = commands.add_parser(
@@ -79,6 +89,9 @@ def main() -> None:
             koromo_player_id=args.koromo_player_id,
         ),
         "profile": service.local_profile,
+        "preferences": service.analysis_preferences,
+        "model-default": lambda: service.set_default_mortal_model(args.model_tag),
+        "model-default-clear": service.clear_default_mortal_model,
         "inspect": lambda: service.inspect_log(args.log_path),
         "review": lambda: service.review_log(
             args.log_path, player_id=args.seat, kyokus=args.kyokus

@@ -8,7 +8,7 @@ sections that add no useful content.
 
 Use this sequence:
 
-1. State the game and Mortal model identity.
+1. Identify the Mortal model once when it helps interpret or compare the review.
 2. Select up to three decisions with the highest teaching value. Large Q gap alone is not enough; prefer different categories when possible.
 3. For each decision, show the actual choice, Mortal's top choice, closeness, relevant state, and one transferable lesson.
 4. End with one tentative pattern, one strength, and one drill for the next games.

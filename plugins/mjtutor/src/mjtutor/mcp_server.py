@@ -92,13 +92,13 @@ def inspect_majsoul_log(log_path: str) -> dict[str, Any]:
 def prepare_mortal_web_review(
     majsoul_log_url: str,
     language: str = "zh-CN",
-    model_tag: str = "4.1b",
+    model_tag: str | None = None,
     kyokus: str | None = None,
 ) -> dict[str, Any]:
     """Prepare a remote Mortal review from a Mahjong Soul paipu URL.
 
-    This returns a prefilled Mortal Web URL. Cloudflare Turnstile requires a
-    human verification step; this tool never bypasses or solves it.
+    This returns a prefilled Mortal Web URL. It never bypasses or solves
+    Cloudflare Turnstile; the browser may continue when verification succeeds.
     """
     return service.prepare_web_review(
         majsoul_log_url,
@@ -106,6 +106,24 @@ def prepare_mortal_web_review(
         model_tag=model_tag,
         kyokus=kyokus,
     )
+
+
+@mcp.tool()
+def get_analysis_preferences() -> dict[str, Any]:
+    """Return the default Mortal model and the currently available model catalog."""
+    return service.analysis_preferences()
+
+
+@mcp.tool()
+def set_default_mortal_model(model_tag: str) -> dict[str, Any]:
+    """Save the local user's default Mortal model for future web reviews."""
+    return service.set_default_mortal_model(model_tag)
+
+
+@mcp.tool()
+def clear_default_mortal_model() -> dict[str, Any]:
+    """Clear the saved Mortal model so the next review asks for a choice."""
+    return service.clear_default_mortal_model()
 
 
 @mcp.tool()
@@ -227,13 +245,16 @@ def get_koromo_sync_status(
 
 
 @mcp.tool(meta={"ui": {"visibility": ["model", "app"]}})
-def prepare_selected_game_review(uuid: str) -> dict[str, Any]:
+def prepare_selected_game_review(
+    uuid: str,
+    model_tag: str | None = None,
+) -> dict[str, Any]:
     """Prepare Mortal Web for one game selected from the local Koromo catalog.
 
-    This only creates the prefilled URL. The user must open it and complete Turnstile;
-    no external analysis or submission starts automatically.
+    This only creates the prefilled URL. Opening and submitting remain browser actions;
+    this tool itself does not start external analysis.
     """
-    return service.prepare_selected_game_review(uuid)
+    return service.prepare_selected_game_review(uuid, model_tag=model_tag)
 
 
 @mcp.tool()

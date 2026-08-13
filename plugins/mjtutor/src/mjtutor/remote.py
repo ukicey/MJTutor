@@ -24,7 +24,46 @@ LANGUAGE_PATHS = {
     "ja": "/ja.html",
     "ko": "/ko.html",
 }
-MODEL_TAGS = {"4.1c", "4.1b", "4.1a", "4.0", "3.0"}
+MORTAL_MODEL_CATALOG = (
+    {
+        "tag": "4.1c",
+        "label": "First-place-oriented",
+        "site_label_zh": "争一型",
+        "guidance": (
+            "Prefer when the review should emphasize converting chances into "
+            "first place."
+        ),
+    },
+    {
+        "tag": "4.1b",
+        "label": "Balanced",
+        "site_label_zh": "平衡型",
+        "guidance": "A practical general-purpose starting point for routine review.",
+    },
+    {
+        "tag": "4.1a",
+        "label": "Fourth-place-avoidant",
+        "site_label_zh": "避四型",
+        "guidance": (
+            "Prefer when avoiding fourth place is the main placement objective."
+        ),
+    },
+    {
+        "tag": "4.0",
+        "label": "Legacy",
+        "site_label_zh": "旧版",
+        "guidance": (
+            "Keep mainly for comparison with reports made using the older network."
+        ),
+    },
+    {
+        "tag": "3.0",
+        "label": "More human-like, but weakest",
+        "site_label_zh": "更像人类，但是最弱",
+        "guidance": "Can provide gentler, more human-like alternatives, but is weaker.",
+    },
+)
+MODEL_TAGS = frozenset(item["tag"] for item in MORTAL_MODEL_CATALOG)
 MAX_REPORT_BYTES = 50 * 1024 * 1024
 
 
@@ -60,12 +99,8 @@ class MortalWebProvider:
         kyokus: str | None = None,
     ) -> dict[str, Any]:
         normalized_log_url = validate_majsoul_url(log_url)
-        if language not in LANGUAGE_PATHS:
-            raise ReviewerError(f"language must be one of: {', '.join(LANGUAGE_PATHS)}")
-        if model_tag not in MODEL_TAGS:
-            raise ReviewerError(
-                f"model_tag must be one of: {', '.join(sorted(MODEL_TAGS))}"
-            )
+        language = validate_mortal_web_language(language)
+        model_tag = validate_mortal_model_tag(model_tag)
 
         query = urlencode({"url": normalized_log_url})
         submission_url = urlunparse(
@@ -84,9 +119,11 @@ class MortalWebProvider:
                 "kyokus": kyokus,
             },
             "next_step": (
-                "Open submission_url, confirm the requested settings, complete "
-                "Turnstile, and submit. Then pass the generated /report/ JSON or "
-                "HTML URL to import_mortal_web_report."
+                "Open submission_url and set the requested model. If the user asked "
+                "to start this review and Turnstile has already completed, submit "
+                "the enabled form. Otherwise wait for the user's verification. Then "
+                "pass the generated /report/ JSON or HTML URL to "
+                "import_mortal_web_report."
             ),
             "automatic_submission": False,
         }
@@ -142,6 +179,24 @@ class MortalWebProvider:
             player_id=player_id,
             report_json_url=report_json_url,
         )
+
+
+def mortal_model_catalog() -> list[dict[str, str]]:
+    return [dict(item) for item in MORTAL_MODEL_CATALOG]
+
+
+def validate_mortal_model_tag(value: str) -> str:
+    model_tag = value.strip()
+    if model_tag not in MODEL_TAGS:
+        available = ", ".join(item["tag"] for item in MORTAL_MODEL_CATALOG)
+        raise ReviewerError(f"model_tag must be one of: {available}")
+    return model_tag
+
+
+def validate_mortal_web_language(value: str) -> str:
+    if value not in LANGUAGE_PATHS:
+        raise ReviewerError(f"language must be one of: {', '.join(LANGUAGE_PATHS)}")
+    return value
 
 
 def validate_majsoul_url(value: str) -> str:

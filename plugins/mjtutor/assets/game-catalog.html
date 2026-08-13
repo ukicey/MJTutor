@@ -329,9 +329,15 @@
         try {
           const result = structured(await callTool("prepare_selected_game_review", { uuid }));
           const game = result.game || {};
-          const prompt = result.status === "already_reviewed"
-            ? `用 MJTutor 继续复盘我在牌局目录中选择的这一局。已有 review_id：${result.review_id}。请直接读取本地复盘，不要重新提交 Mortal。`
-            : `用 MJTutor 复盘我在牌局目录中选择的这一局。牌谱 UUID：${game.uuid || uuid}。Mortal Web 地址：${result.mortal_web?.submission_url || ""}。请打开这个页面，等我完成 Turnstile 后再继续。`;
+          let prompt;
+          if (result.status === "already_reviewed") {
+            prompt = `用 MJTutor 继续复盘我在牌局目录中选择的这一局。已有 review_id：${result.review_id}。请直接读取本地复盘，不要重新提交 Mortal。`;
+          } else if (result.status === "model_preference_required") {
+            prompt = `我想复盘牌局目录中选择的这一局，但还没有设置默认 Mortal 模型。请简要介绍当前可用模型并帮我选择；确定后保存为默认并继续准备这局。牌谱 UUID：${game.uuid || uuid}。`;
+          } else {
+            const model = result.mortal_web?.requested_settings?.model_tag || "";
+            prompt = `用 MJTutor 复盘我在牌局目录中选择的这一局。牌谱 UUID：${game.uuid || uuid}。Mortal Web 地址：${result.mortal_web?.submission_url || ""}。请打开页面，将 Mortal 网络设为 ${model}；如果 Turnstile 已自动通过，就直接提交并继续，否则等我完成验证。`;
+          }
           if (window.openai?.sendFollowUpMessage) {
             await window.openai.sendFollowUpMessage({ prompt, scrollToBottom: true });
           } else {

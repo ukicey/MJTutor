@@ -25,6 +25,7 @@ Mortal as a mistake.
 
 - Review four-player Mahjong Soul hanchan directly in a Codex conversation.
 - Use Mortal Web for remote analysis without running Mortal models locally.
+- Choose and save a default Mortal model for future reviews.
 - Explain key decisions using candidates, Q values, shanten, scores, rivers,
   melds, and visible tiles.
 - Turn explicit feedback and recurring patterns across games into a long-term
@@ -71,10 +72,15 @@ Use MJTutor to review this four-player Mahjong Soul hanchan. Start with the thre
 https://game.maj-soul.com/1/?paipu=...
 ```
 
-MJTutor opens a Mortal Web page with the game URL and analysis options already
-filled in. Complete Cloudflare Turnstile and submit the page yourself. After
-the report is ready, MJTutor imports it and starts the review. The plugin
-cannot complete this human-verification step for you.
+On the first review, MJTutor briefly introduces the available models and helps
+you choose when no default has been saved. You can change the default later or
+use another model for a single game.
+
+MJTutor opens Mortal Web with the game URL filled in and selects your preferred
+model. If Cloudflare Turnstile completes automatically, MJTutor submits the
+form and waits for the report. If the page requires interaction, complete the
+verification yourself. MJTutor then imports the report and starts the review;
+it never bypasses or completes verification for you.
 
 ## Game catalog
 

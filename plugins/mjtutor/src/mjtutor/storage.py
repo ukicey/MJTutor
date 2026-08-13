@@ -12,13 +12,19 @@ from .koromo import extract_koromo_player_id, extract_paipu_uuid
 from .logs import LogMetadata
 from .models import ReviewDocument
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 LOCAL_PROFILE_ID = 1
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS local_profile (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS local_settings (
+    key TEXT PRIMARY KEY,
+    value_json TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
 
@@ -265,6 +271,7 @@ class ReviewRepository:
     ) -> dict[str, list[dict[str, Any]]]:
         tables = (
             "local_profile",
+            "local_settings",
             "majsoul_accounts",
             "account_nicknames",
             "players",
@@ -309,6 +316,7 @@ class ReviewRepository:
             "reviews",
             "account_nicknames",
             "majsoul_accounts",
+            "local_settings",
             "local_profile",
             "player_nicknames",
             "players",
@@ -341,6 +349,15 @@ class ReviewRepository:
             "INSERT INTO local_profile (id, created_at, updated_at) VALUES (1, ?, ?)",
             (created_at, updated_at),
         )
+
+        for row in snapshot["local_settings"]:
+            connection.execute(
+                """
+                INSERT INTO local_settings (key, value_json, updated_at)
+                VALUES (?, ?, ?)
+                """,
+                (row["key"], row["value_json"], row["updated_at"]),
+            )
 
         accounts: dict[int, dict[str, Any]] = {}
         for row in snapshot["majsoul_accounts"]:
@@ -677,6 +694,42 @@ class ReviewRepository:
             "updated_at": str(profile["updated_at"]),
             "accounts": account_results,
         }
+
+    def get_local_setting(self, key: str) -> Any | None:
+        with closing(self._connect()) as connection:
+            row = connection.execute(
+                "SELECT value_json FROM local_settings WHERE key = ?",
+                (key,),
+            ).fetchone()
+        if row is None:
+            return None
+        return json.loads(str(row["value_json"]))
+
+    def set_local_setting(self, key: str, value: Any) -> dict[str, Any]:
+        updated_at = _now()
+        value_json = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+        with closing(self._connect()) as connection:
+            connection.execute(
+                """
+                INSERT INTO local_settings (key, value_json, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET
+                    value_json = excluded.value_json,
+                    updated_at = excluded.updated_at
+                """,
+                (key, value_json, updated_at),
+            )
+            connection.commit()
+        return {"key": key, "value": value, "updated_at": updated_at}
+
+    def delete_local_setting(self, key: str) -> bool:
+        with closing(self._connect()) as connection:
+            cursor = connection.execute(
+                "DELETE FROM local_settings WHERE key = ?",
+                (key,),
+            )
+            connection.commit()
+        return cursor.rowcount > 0
 
     def save_koromo_games(
         self,

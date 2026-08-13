@@ -3,8 +3,10 @@ import pytest
 from mjtutor.errors import ReviewerError
 from mjtutor.remote import (
     MortalWebProvider,
+    mortal_model_catalog,
     normalize_report_json_url,
     validate_majsoul_url,
+    validate_mortal_model_tag,
 )
 
 PAIPU_URL = "https://game.maj-soul.com/1/?paipu=synthetic-test-hanchan"
@@ -16,6 +18,24 @@ def test_prepares_prefilled_mortal_web_review() -> None:
     assert result["status"] == "awaiting_human_verification"
     assert result["automatic_submission"] is False
     assert result["submission_url"].startswith("https://mjai.ekyu.moe/zh-cn.html?url=")
+
+
+def test_exposes_current_mortal_model_catalog() -> None:
+    models = mortal_model_catalog()
+
+    assert [model["tag"] for model in models] == [
+        "4.1c",
+        "4.1b",
+        "4.1a",
+        "4.0",
+        "3.0",
+    ]
+    assert models[1]["site_label_zh"] == "平衡型"
+
+
+def test_rejects_unknown_mortal_model() -> None:
+    with pytest.raises(ReviewerError, match="model_tag"):
+        validate_mortal_model_tag("future-model")
 
 
 def test_rejects_non_majsoul_url() -> None:

@@ -16,7 +16,13 @@ from .koromo_catalog import (
     KoromoVerificationRequired,
 )
 from .logs import LogMetadata, inspect_tenhou_v6_log
-from .remote import MortalWebProvider
+from .remote import (
+    MortalWebProvider,
+    mortal_model_catalog,
+    validate_majsoul_url,
+    validate_mortal_model_tag,
+    validate_mortal_web_language,
+)
 from .reviewer import MortalReviewer, ReviewerConfig, load_review_file
 from .storage import ReviewRepository
 
@@ -29,6 +35,7 @@ ALLOWED_PROFILE_KINDS = ALLOWED_NOTE_KINDS | {
 }
 ALLOWED_EVIDENCE_STANCES = {"support", "contradict"}
 ALLOWED_PROFILE_ACTIONS = {"confirm", "correct", "reject", "forget"}
+DEFAULT_MORTAL_MODEL_SETTING = "default_mortal_model"
 
 
 class CoachService:
@@ -66,18 +73,52 @@ class CoachService:
                 "game_length": "hanchan only",
                 "data_and_coach": "local only",
             },
+            "analysis_preferences": self.analysis_preferences(),
         }
+
+    def analysis_preferences(self) -> dict[str, Any]:
+        model_tag = self.repository.get_local_setting(DEFAULT_MORTAL_MODEL_SETTING)
+        if not isinstance(model_tag, str) or model_tag not in {
+            item["tag"] for item in mortal_model_catalog()
+        }:
+            model_tag = None
+        return {
+            "default_mortal_model": model_tag,
+            "available_mortal_models": mortal_model_catalog(),
+        }
+
+    def set_default_mortal_model(self, model_tag: str) -> dict[str, Any]:
+        validated = validate_mortal_model_tag(model_tag)
+        self.repository.set_local_setting(DEFAULT_MORTAL_MODEL_SETTING, validated)
+        return self.analysis_preferences()
+
+    def clear_default_mortal_model(self) -> dict[str, Any]:
+        self.repository.delete_local_setting(DEFAULT_MORTAL_MODEL_SETTING)
+        return self.analysis_preferences()
 
     def prepare_web_review(
         self,
         log_url: str,
         *,
         language: str = "zh-CN",
-        model_tag: str = "4.1b",
+        model_tag: str | None = None,
         kyokus: str | None = None,
     ) -> dict[str, Any]:
+        normalized_log_url = validate_majsoul_url(log_url)
+        validate_mortal_web_language(language)
+        if model_tag is None:
+            preference = self.analysis_preferences()
+            model_tag = preference["default_mortal_model"]
+            if model_tag is None:
+                return {
+                    "provider": "mortal_web",
+                    "status": "model_preference_required",
+                    "majsoul_log_url": normalized_log_url,
+                    "available_mortal_models": preference["available_mortal_models"],
+                    "automatic_submission": False,
+                }
         return self.web_provider.prepare(
-            log_url,
+            normalized_log_url,
             language=language,
             model_tag=model_tag,
             kyokus=kyokus,
@@ -340,7 +381,12 @@ class CoachService:
             "minimum_sync_interval_minutes": DEFAULT_SYNC_INTERVAL_MINUTES,
         }
 
-    def prepare_selected_game_review(self, uuid: str) -> dict[str, Any]:
+    def prepare_selected_game_review(
+        self,
+        uuid: str,
+        *,
+        model_tag: str | None = None,
+    ) -> dict[str, Any]:
         game = self.repository.get_koromo_game(uuid.strip())
         compact_game = {
             "uuid": game["uuid"],
@@ -362,11 +408,18 @@ class CoachService:
                 "mortal_web": None,
                 "external_analysis_started": False,
             }
-        prepared = self.web_provider.prepare(
+        prepared = self.prepare_web_review(
             str(game["paipu_url"]),
             language="zh-CN",
-            model_tag="4.1b",
+            model_tag=model_tag,
         )
+        if prepared["status"] == "model_preference_required":
+            return {
+                "status": "model_preference_required",
+                "game": compact_game,
+                "mortal_web": prepared,
+                "external_analysis_started": False,
+            }
         return {
             "status": "awaiting_human_verification",
             "game": compact_game,
@@ -533,9 +586,11 @@ class CoachService:
         *,
         include_rejected: bool = False,
     ) -> dict[str, Any]:
-        return self.repository.coaching_profile(
+        profile = self.repository.coaching_profile(
             include_rejected=include_rejected,
         )
+        profile["analysis_preferences"] = self.analysis_preferences()
+        return profile
 
 
 def default_database_path() -> Path:
