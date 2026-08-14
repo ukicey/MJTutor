@@ -1,3 +1,3 @@
 """Mortal Web-backed coaching tools for Mahjong Soul hanchan logs."""
 
-__version__ = "1.1.1"
+__version__ = "1.2.0"

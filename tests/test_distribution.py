@@ -136,10 +136,10 @@ def test_user_facing_account_terms_identify_mahjong_soul_account() -> None:
     )
     chinese_readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
-    assert "Mahjong Soul account ID" in server
-    assert "Mahjong Soul account ID" in skill
-    assert "雀魂账号 ID" in chinese_readme
-    assert "并不是另一套牌谱屋账号" in chinese_readme
+    assert "Mahjong Soul profile" in server
+    assert "profile UID" in skill
+    assert "个人资料”中显示的 UID" in chinese_readme
+    assert "牌谱屋内部账号 ID" in chinese_readme
 
 
 def test_skill_rechecks_async_turnstile_state_before_handoff() -> None:

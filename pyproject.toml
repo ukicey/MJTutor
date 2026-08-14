@@ -1,6 +1,6 @@
 [project]
 name = "mjtutor"
-version = "1.1.1"
+version = "1.2.0"
 description = "Mahjong Soul hanchan coaching with Mortal Web and local memory"
 readme = "README.md"
 license = { file = "LICENSE" }

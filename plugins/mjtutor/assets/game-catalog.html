@@ -108,7 +108,7 @@
       th:nth-child(2) { width: 106px; }
       th:nth-child(3) { width: 66px; }
       th:nth-child(4) { width: 84px; }
-      th:nth-child(5) { width: 88px; }
+      th:nth-child(5) { width: 118px; }
       th:nth-child(6) { width: 84px; }
       .rank { font-weight: 700; }
       .rank-1 { color: var(--gold); }
@@ -170,7 +170,7 @@
       <div class="notice" id="notice" role="status"></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>时间</th><th>场次</th><th>顺位</th><th>终局点数</th><th>牌谱</th><th></th></tr></thead>
+          <thead><tr><th>记录时间</th><th>场次</th><th>顺位</th><th>终局点数</th><th>复盘模型</th><th></th></tr></thead>
           <tbody id="rows"></tbody>
         </table>
         <div class="empty" id="empty" hidden>本地还没有符合条件的牌局。</div>
@@ -227,7 +227,7 @@
         const fromValue = $("from").value;
         const toValue = $("to").value;
         return {
-          account_id: $("account").value ? Number($("account").value) : null,
+          majsoul_uid: $("account").value ? Number($("account").value) : null,
           rank: $("rank").value ? Number($("rank").value) : null,
           reviewed: $("reviewed").value === "" ? null : $("reviewed").value === "true",
           start_time: fromValue ? Math.floor(new Date(fromValue + "T00:00:00").getTime() / 1000) : null,
@@ -252,14 +252,16 @@
         state.accounts = accounts;
         const selected = $("account").value;
         $("account").innerHTML = '<option value="">全部账号</option>' + accounts.map((account) =>
-          `<option value="${account.account_id}">${escapeHtml(account.nickname)} · ${account.account_id}</option>`
+          `<option value="${account.majsoul_uid}">${escapeHtml(account.nickname)} · UID ${account.majsoul_uid}</option>`
         ).join("");
         if ([...$("account").options].some((option) => option.value === selected)) $("account").value = selected;
 
         const blocked = accounts.find((item) => item.status === "verification_required");
         const unavailable = accounts.find((item) => item.status === "unavailable");
-        if (blocked) setNotice("牌谱屋要求浏览器验证或站方访问密钥，当前继续显示本地缓存。MJTutor 不会绕过验证。");
+        const unlinked = accounts.find((item) => item.status === "identity_link_required");
+        if (blocked) setNotice("暂时无法从牌谱屋同步新牌局；已有牌谱和复盘仍可正常查看。稍后可以再次同步。");
         else if (unavailable) setNotice("牌谱屋暂时无法访问，当前继续显示本地缓存。");
+        else if (unlinked) setNotice("还需要一条确认属于该账号的雀魂牌谱链接，才能关联牌谱屋目录；已有本地复盘仍会正常显示。");
         else setNotice("");
       }
 
@@ -270,13 +272,17 @@
         rows.innerHTML = state.items.map((game) => {
           const date = new Date(Number(game.start_time) * 1000);
           const time = new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
-          const reviewState = game.reviewed ? '<span class="reviewed">已复盘</span>' : "未复盘";
+          const rank = game.player_rank == null ? "—" : `<span class="rank rank-${game.player_rank}">${game.player_rank} 位</span>`;
+          const score = game.player_score == null ? "—" : Number(game.player_score).toLocaleString("zh-CN");
+          const models = game.model_tags?.length
+            ? `<span class="reviewed">${escapeHtml(game.model_tags.join(" · "))}</span>`
+            : "未复盘";
           return `<tr>
             <td>${time}</td>
             <td>${escapeHtml(game.mode_label)}</td>
-            <td><span class="rank rank-${game.player_rank}">${game.player_rank} 位</span></td>
-            <td>${Number(game.player_score).toLocaleString("zh-CN")}</td>
-            <td class="uuid" title="${escapeHtml(game.uuid)}">${reviewState}</td>
+            <td>${rank}</td>
+            <td>${score}</td>
+            <td class="uuid" title="${escapeHtml(game.uuid)}">${models}</td>
             <td><button type="button" data-review="${escapeHtml(game.uuid)}">${game.reviewed ? "看牌" : "复盘"}</button></td>
           </tr>`;
         }).join("");
@@ -286,9 +292,9 @@
         $("pager-info").textContent = `${first}-${last} / ${state.total}`;
         $("prev").disabled = state.offset === 0;
         $("next").disabled = state.offset + state.items.length >= state.total;
-        $("status").textContent = state.accounts.length
-          ? `${state.accounts.reduce((sum, item) => sum + Number(item.cached_game_count || 0), 0)} 局已缓存`
-          : "尚未绑定雀魂账号";
+        const gameCount = Number(data.catalog_game_count ?? state.total);
+        const reviewCount = Number(data.catalog_review_count ?? 0);
+        $("status").textContent = `${gameCount} 局牌谱 · ${reviewCount} 份复盘`;
       }
 
       async function loadPage() {

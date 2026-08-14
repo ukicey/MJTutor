@@ -44,10 +44,10 @@ class KoromoGame:
     player_rank: int
     player_score: int
 
-    def as_dict(self, *, account_id: int) -> dict[str, Any]:
+    def as_dict(self, *, koromo_account_id: int) -> dict[str, Any]:
         return {
             "uuid": self.uuid,
-            "account_id": account_id,
+            "koromo_account_id": koromo_account_id,
             "mode_id": self.mode_id,
             "mode_label": MODE_LABELS.get(self.mode_id, f"Mode {self.mode_id}"),
             "start_time": self.start_time,
@@ -55,7 +55,7 @@ class KoromoGame:
             "players": [dict(player) for player in self.players],
             "player_rank": self.player_rank,
             "player_score": self.player_score,
-            "paipu_url": make_paipu_url(self.uuid, account_id),
+            "paipu_url": make_paipu_url(self.uuid, koromo_account_id),
         }
 
 
@@ -89,13 +89,13 @@ class KoromoCatalogClient:
     def fetch_games(
         self,
         *,
-        account_id: int,
+        koromo_account_id: int,
         start_ms: int,
         end_ms: int,
         limit: int = 100,
     ) -> list[KoromoGame]:
-        if account_id <= 0:
-            raise KoromoAccessError("account_id must be positive")
+        if koromo_account_id <= 0:
+            raise KoromoAccessError("koromo_account_id must be positive")
         if start_ms < 0 or end_ms <= start_ms:
             raise KoromoAccessError("Koromo sync time range is invalid")
         limit = max(1, min(int(limit), 100))
@@ -106,11 +106,17 @@ class KoromoCatalogClient:
                 "descending": "true",
             }
         )
-        path = f"/api/v2/pl4/player_records/{account_id}/{end_ms}/{start_ms}?{query}"
+        path = (
+            f"/api/v2/pl4/player_records/{koromo_account_id}/"
+            f"{end_ms}/{start_ms}?{query}"
+        )
         payload = self._get_json(path)
         if not isinstance(payload, list):
             raise KoromoAccessError("Koromo returned an unexpected game-list response")
-        return [parse_koromo_game(item, account_id=account_id) for item in payload]
+        return [
+            parse_koromo_game(item, koromo_account_id=koromo_account_id)
+            for item in payload
+        ]
 
     def _get_json(self, path: str) -> Any:
         last_error: Exception | None = None
@@ -153,7 +159,7 @@ class KoromoCatalogClient:
         return headers
 
 
-def parse_koromo_game(raw: Any, *, account_id: int) -> KoromoGame:
+def parse_koromo_game(raw: Any, *, koromo_account_id: int) -> KoromoGame:
     if not isinstance(raw, dict):
         raise KoromoAccessError("Koromo game record must be an object")
     players_raw = raw.get("players")
@@ -164,7 +170,7 @@ def parse_koromo_game(raw: Any, *, account_id: int) -> KoromoGame:
         (
             index
             for index, player in enumerate(players)
-            if int(player["account_id"]) == account_id
+            if int(player["account_id"]) == koromo_account_id
         ),
         None,
     )
@@ -194,8 +200,8 @@ def parse_koromo_game(raw: Any, *, account_id: int) -> KoromoGame:
     )
 
 
-def make_paipu_url(uuid: str, account_id: int) -> str:
-    encoded = encode_paipu_account_id(account_id)
+def make_paipu_url(uuid: str, koromo_account_id: int) -> str:
+    encoded = encode_paipu_account_id(koromo_account_id)
     return f"https://game.maj-soul.com/1/?paipu={uuid}_a{encoded}"
 
 

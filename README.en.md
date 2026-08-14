@@ -96,11 +96,12 @@ The catalog can filter games by account, placement, date, and review status.
 You can refresh it manually and select a game to review. Account binding is
 optional and does not affect direct review from a Mahjong Soul URL.
 
-MJTutor identifies an account with the Mahjong Soul account ID you confirm.
-Koromo exposes the same value as `account_id`; it is not a separate Koromo
-account. Nicknames are used only for display. Koromo data may be delayed,
-incomplete, or protected by additional verification. If access is unavailable,
-MJTutor continues to show records already stored locally.
+MJTutor identifies an account with the UID shown in the Mahjong Soul profile and
+its nickname. The first Koromo link also needs one paipu URL that you confirm
+belongs to that account. MJTutor derives Koromo's separate internal account ID
+from the URL, so you do not need to find or remember it. Koromo data may be
+delayed, incomplete, or require additional verification; imported local reviews
+remain visible when access is restricted.
 
 ## Long-term memory
 

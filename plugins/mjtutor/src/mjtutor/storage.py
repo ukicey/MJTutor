@@ -8,11 +8,11 @@ from pathlib import Path
 from typing import Any
 
 from .errors import CoachError, ProfileItemNotFoundError, ReviewNotFoundError
-from .koromo import extract_koromo_player_id, extract_paipu_uuid
+from .koromo import extract_koromo_account_id, extract_paipu_uuid
 from .logs import LogMetadata
 from .models import ReviewDocument
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 LOCAL_PROFILE_ID = 1
 
 SCHEMA = """
@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS local_settings (
 
 CREATE TABLE IF NOT EXISTS majsoul_accounts (
     account_id INTEGER PRIMARY KEY,
+    koromo_account_id INTEGER,
     local_profile_id INTEGER NOT NULL DEFAULT 1
         REFERENCES local_profile(id) ON DELETE CASCADE
         CHECK (local_profile_id = 1),
@@ -231,6 +232,19 @@ class ReviewRepository:
     def _ensure_additive_columns(cls, connection: sqlite3.Connection) -> None:
         if "report_json_url" not in cls._table_columns(connection, "reviews"):
             connection.execute("ALTER TABLE reviews ADD COLUMN report_json_url TEXT")
+        if "koromo_account_id" not in cls._table_columns(
+            connection, "majsoul_accounts"
+        ):
+            connection.execute(
+                "ALTER TABLE majsoul_accounts ADD COLUMN koromo_account_id INTEGER"
+            )
+        connection.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_majsoul_accounts_koromo
+            ON majsoul_accounts(koromo_account_id)
+            WHERE koromo_account_id IS NOT NULL
+            """
+        )
 
     @staticmethod
     def _table_exists(connection: sqlite3.Connection, table: str) -> bool:
@@ -387,11 +401,17 @@ class ReviewRepository:
             connection.execute(
                 """
                 INSERT INTO majsoul_accounts (
-                    account_id, local_profile_id, nickname, created_at, updated_at
-                ) VALUES (?, 1, ?, ?, ?)
+                    account_id, koromo_account_id, local_profile_id, nickname,
+                    created_at, updated_at
+                ) VALUES (?, ?, 1, ?, ?, ?)
                 """,
                 (
                     account_id,
+                    int(row["koromo_account_id"])
+                    if row.get("koromo_account_id") is not None
+                    else account_id
+                    if "koromo_account_id" not in row or legacy_player is not None
+                    else None,
                     str(row["nickname"]),
                     str(row.get("created_at", now)),
                     str(row.get("updated_at", now)),
@@ -460,7 +480,7 @@ class ReviewRepository:
                 and legacy_player is not None
                 and (
                     row.get("player_key") == legacy_player_key
-                    or extract_koromo_player_id(str(row["source_path"]))
+                    or extract_koromo_account_id(str(row["source_path"]))
                     == int(legacy_player["koromo_player_id"])
                 )
             ):
@@ -589,39 +609,49 @@ class ReviewRepository:
                 continue
             self._index_review_observations(review_id=review_id, review=review)
 
-    def bind_koromo_account(
+    def bind_majsoul_account(
         self,
         *,
         nickname: str,
-        koromo_player_id: int,
+        majsoul_uid: int,
+        koromo_account_id: int | None = None,
     ) -> dict[str, Any]:
         nickname = nickname.strip()
         if not nickname:
             raise CoachError("nickname must not be empty")
-        if koromo_player_id <= 0:
-            raise CoachError("account_id must be a positive integer")
+        if majsoul_uid <= 0:
+            raise CoachError("majsoul_uid must be a positive integer")
+        if koromo_account_id is not None and koromo_account_id <= 0:
+            raise CoachError("koromo_account_id must be a positive integer")
         now = _now()
         with closing(self._connect()) as connection:
             existing = connection.execute(
                 """
-                SELECT nickname, created_at
+                SELECT nickname, koromo_account_id, created_at
                 FROM majsoul_accounts
                 WHERE account_id = ?
                 """,
-                (koromo_player_id,),
+                (majsoul_uid,),
             ).fetchone()
             if existing is None:
                 connection.execute(
                     """
                     INSERT INTO majsoul_accounts (
-                        account_id, local_profile_id, nickname, created_at, updated_at
-                    ) VALUES (?, 1, ?, ?, ?)
+                        account_id, koromo_account_id, local_profile_id, nickname,
+                        created_at, updated_at
+                    ) VALUES (?, ?, 1, ?, ?, ?)
                     """,
-                    (koromo_player_id, nickname, now, now),
+                    (majsoul_uid, koromo_account_id, nickname, now, now),
                 )
                 created_at = now
+                previous_koromo_account_id = None
             else:
                 created_at = str(existing["created_at"])
+                previous_koromo_account_id = (
+                    int(existing["koromo_account_id"])
+                    if existing["koromo_account_id"] is not None
+                    else None
+                )
                 if str(existing["nickname"]) != nickname:
                     connection.execute(
                         """
@@ -629,15 +659,17 @@ class ReviewRepository:
                         SET is_current = 0
                         WHERE account_id = ?
                         """,
-                        (koromo_player_id,),
+                        (majsoul_uid,),
                     )
                 connection.execute(
                     """
                     UPDATE majsoul_accounts
-                    SET nickname = ?, updated_at = ?
+                    SET nickname = ?,
+                        koromo_account_id = COALESCE(?, koromo_account_id),
+                        updated_at = ?
                     WHERE account_id = ?
                     """,
-                    (nickname, now, koromo_player_id),
+                    (nickname, koromo_account_id, now, majsoul_uid),
                 )
             connection.execute(
                 """
@@ -648,7 +680,21 @@ class ReviewRepository:
                     last_seen_at = excluded.last_seen_at,
                     is_current = 1
                 """,
-                (koromo_player_id, nickname, now, now),
+                (majsoul_uid, nickname, now, now),
+            )
+            if (
+                koromo_account_id is not None
+                and koromo_account_id != previous_koromo_account_id
+            ):
+                connection.execute(
+                    "DELETE FROM koromo_games WHERE account_id = ?", (majsoul_uid,)
+                )
+                connection.execute(
+                    "DELETE FROM koromo_sync_state WHERE account_id = ?", (majsoul_uid,)
+                )
+            connection.execute(
+                "UPDATE reviews SET player_name = ? WHERE account_id = ?",
+                (nickname, majsoul_uid),
             )
             connection.execute(
                 "UPDATE local_profile SET updated_at = ? WHERE id = 1",
@@ -656,9 +702,18 @@ class ReviewRepository:
             )
             connection.commit()
 
-        bound_review_ids = self._backfill_account_reviews(koromo_player_id)
+        effective_koromo_account_id = (
+            koromo_account_id
+            if koromo_account_id is not None
+            else previous_koromo_account_id
+        )
+        bound_review_ids = self._backfill_account_reviews(
+            majsoul_uid=majsoul_uid,
+            koromo_account_id=effective_koromo_account_id,
+        )
         return {
-            "account_id": koromo_player_id,
+            "majsoul_uid": majsoul_uid,
+            "koromo_account_id": effective_koromo_account_id,
             "nickname": nickname,
             "created_at": created_at,
             "updated_at": now,
@@ -672,7 +727,8 @@ class ReviewRepository:
             ).fetchone()
             accounts = connection.execute(
                 """
-                SELECT a.account_id, a.nickname, a.created_at, a.updated_at,
+                SELECT a.account_id AS majsoul_uid, a.koromo_account_id,
+                       a.nickname, a.created_at, a.updated_at,
                        COUNT(DISTINCT r.id) AS review_count
                 FROM majsoul_accounts AS a
                 LEFT JOIN reviews AS r ON r.account_id = a.account_id
@@ -695,7 +751,7 @@ class ReviewRepository:
         for row in accounts:
             item = dict(row)
             item["review_count"] = int(item["review_count"])
-            item["nickname_history"] = by_account.get(int(item["account_id"]), [])
+            item["nickname_history"] = by_account.get(int(item["majsoul_uid"]), [])
             account_results.append(item)
         return {
             "id": int(profile["id"]),
@@ -892,10 +948,10 @@ class ReviewRepository:
         accounts = identity["accounts"]
         if account_id is not None:
             accounts = [
-                item for item in accounts if int(item["account_id"]) == account_id
+                item for item in accounts if int(item["majsoul_uid"]) == account_id
             ]
             if not accounts:
-                raise CoachError(f"Mahjong Soul account is not bound: {account_id}")
+                raise CoachError(f"Mahjong Soul UID is not bound: {account_id}")
         with closing(self._connect()) as connection:
             rows = connection.execute(
                 "SELECT * FROM koromo_sync_state ORDER BY account_id"
@@ -904,23 +960,36 @@ class ReviewRepository:
         results = []
         for account in accounts:
             item = {
-                "account_id": int(account["account_id"]),
+                "majsoul_uid": int(account["majsoul_uid"]),
+                "koromo_account_id": (
+                    int(account["koromo_account_id"])
+                    if account["koromo_account_id"] is not None
+                    else None
+                ),
                 "nickname": str(account["nickname"]),
                 "last_attempt_at": None,
                 "last_success_at": None,
                 "latest_game_start": None,
-                "status": "never",
+                "status": (
+                    "never"
+                    if account["koromo_account_id"] is not None
+                    else "identity_link_required"
+                ),
                 "last_error": None,
                 "cached_game_count": 0,
             }
-            item.update(states.get(item["account_id"], {}))
+            state = states.get(item["majsoul_uid"], {})
+            if item["koromo_account_id"] is not None:
+                item.update(
+                    {key: value for key, value in state.items() if key != "account_id"}
+                )
             results.append(item)
         return {"accounts": results}
 
     def list_koromo_games(
         self,
         *,
-        account_id: int | None = None,
+        majsoul_uid: int | None = None,
         rank: int | None = None,
         reviewed: bool | None = None,
         start_time: int | None = None,
@@ -928,78 +997,142 @@ class ReviewRepository:
         limit: int = 20,
         offset: int = 0,
     ) -> dict[str, Any]:
-        conditions: list[str] = []
-        parameters: list[Any] = []
-        if account_id is not None:
-            conditions.append("g.account_id = ?")
-            parameters.append(account_id)
-        if rank is not None:
-            if rank not in range(1, 5):
-                raise CoachError("rank must be within 1-4")
-            conditions.append("g.player_rank = ?")
-            parameters.append(rank)
-        if reviewed is not None:
-            conditions.append(
-                "g.review_id IS NOT NULL" if reviewed else "g.review_id IS NULL"
-            )
-        if start_time is not None:
-            conditions.append("g.start_time >= ?")
-            parameters.append(start_time)
-        if end_time is not None:
-            conditions.append("g.start_time <= ?")
-            parameters.append(end_time)
-        where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        if rank is not None and rank not in range(1, 5):
+            raise CoachError("rank must be within 1-4")
         page_limit = max(1, min(int(limit), 100))
         page_offset = max(0, int(offset))
-        with closing(self._connect()) as connection:
-            total = int(
-                connection.execute(
-                    f"SELECT COUNT(*) FROM koromo_games AS g {where}",
-                    parameters,
-                ).fetchone()[0]
-            )
-            rows = connection.execute(
-                f"""
-                SELECT g.*, a.nickname AS account_nickname
-                FROM koromo_games AS g
-                JOIN majsoul_accounts AS a ON a.account_id = g.account_id
-                {where}
-                ORDER BY g.start_time DESC, g.uuid
-                LIMIT ? OFFSET ?
-                """,
-                (*parameters, page_limit, page_offset),
-            ).fetchall()
-        items = []
-        for row in rows:
-            item = dict(row)
-            item["players"] = json.loads(item.pop("players_json"))
-            item["reviewed"] = item["review_id"] is not None
-            items.append(item)
+        all_items = self._catalog_items()
+        filtered = [
+            item
+            for item in all_items
+            if (majsoul_uid is None or item["majsoul_uid"] == majsoul_uid)
+            and (rank is None or item["player_rank"] == rank)
+            and (reviewed is None or item["reviewed"] is reviewed)
+            and (start_time is None or item["start_time"] >= start_time)
+            and (end_time is None or item["start_time"] <= end_time)
+        ]
+        items = filtered[page_offset : page_offset + page_limit]
+        total_reviews = sum(int(item["review_count"]) for item in all_items)
         return {
             "items": items,
-            "total": total,
+            "total": len(filtered),
             "limit": page_limit,
             "offset": page_offset,
-            "has_more": page_offset + len(items) < total,
+            "has_more": page_offset + len(items) < len(filtered),
+            "catalog_game_count": len(all_items),
+            "catalog_review_count": total_reviews,
         }
 
-    def get_koromo_game(self, uuid: str) -> dict[str, Any]:
+    def _catalog_items(self) -> list[dict[str, Any]]:
         with closing(self._connect()) as connection:
-            row = connection.execute(
+            game_rows = connection.execute(
                 """
-                SELECT g.*, a.nickname AS account_nickname
+                SELECT g.*, a.nickname AS account_nickname,
+                       a.account_id AS majsoul_uid, a.koromo_account_id
                 FROM koromo_games AS g
                 JOIN majsoul_accounts AS a ON a.account_id = g.account_id
-                WHERE g.uuid = ?
+                ORDER BY g.start_time DESC, g.uuid
                 """,
-                (uuid,),
-            ).fetchone()
-        if row is None:
-            raise CoachError(f"Koromo game is not cached: {uuid}")
-        item = dict(row)
-        item["players"] = json.loads(item.pop("players_json"))
-        item["reviewed"] = item["review_id"] is not None
-        return item
+            ).fetchall()
+            review_rows = connection.execute(
+                """
+                SELECT r.id, r.source_path, r.model_tag, r.created_at, r.account_id,
+                       r.rule_display, a.nickname AS account_nickname,
+                       a.koromo_account_id
+                FROM reviews AS r
+                LEFT JOIN majsoul_accounts AS a ON a.account_id = r.account_id
+                ORDER BY r.created_at DESC, r.id
+                """
+            ).fetchall()
+        by_uuid: dict[str, dict[str, Any]] = {}
+        for row in game_rows:
+            item = dict(row)
+            item["players"] = json.loads(item.pop("players_json"))
+            item.pop("account_id", None)
+            item.pop("review_id", None)
+            item.update(
+                {
+                    "source": "koromo",
+                    "reviewed": False,
+                    "review_count": 0,
+                    "review_id": None,
+                    "review_ids": [],
+                    "model_tags": [],
+                    "reviews": [],
+                }
+            )
+            by_uuid[str(item["uuid"])] = item
+        for row in review_rows:
+            paipu_url = str(row["source_path"])
+            uuid = extract_paipu_uuid(paipu_url)
+            if uuid is None:
+                continue
+            item = by_uuid.get(uuid)
+            if item is None:
+                created_at = str(row["created_at"])
+                item = {
+                    "uuid": uuid,
+                    "majsoul_uid": (
+                        int(row["account_id"])
+                        if row["account_id"] is not None
+                        else None
+                    ),
+                    "koromo_account_id": (
+                        int(row["koromo_account_id"])
+                        if row["koromo_account_id"] is not None
+                        else extract_koromo_account_id(paipu_url)
+                    ),
+                    "account_nickname": row["account_nickname"],
+                    "mode_id": None,
+                    "mode_label": "四麻南",
+                    "start_time": _timestamp(created_at),
+                    "end_time": _timestamp(created_at),
+                    "time_accuracy": "imported",
+                    "players": [],
+                    "player_rank": None,
+                    "player_score": None,
+                    "paipu_url": paipu_url,
+                    "first_seen_at": created_at,
+                    "last_seen_at": created_at,
+                    "source": "local_review",
+                    "reviewed": True,
+                    "review_count": 0,
+                    "review_id": None,
+                    "review_ids": [],
+                    "model_tags": [],
+                    "reviews": [],
+                }
+                by_uuid[uuid] = item
+            elif item["source"] == "koromo":
+                item["source"] = "both"
+            review_id = str(row["id"])
+            model_tag = str(row["model_tag"])
+            item["review_ids"].append(review_id)
+            item["review_count"] += 1
+            item["review_id"] = item["review_id"] or review_id
+            if model_tag not in item["model_tags"]:
+                item["model_tags"].append(model_tag)
+            item.setdefault("reviews", []).append(
+                {
+                    "review_id": review_id,
+                    "model_tag": model_tag,
+                    "created_at": str(row["created_at"]),
+                }
+            )
+            item["reviewed"] = True
+        return sorted(
+            by_uuid.values(),
+            key=lambda item: (int(item["start_time"]), str(item["uuid"])),
+            reverse=True,
+        )
+
+    def get_catalog_game(self, uuid: str) -> dict[str, Any]:
+        game = next(
+            (item for item in self._catalog_items() if item["uuid"] == uuid), None
+        )
+        if game is None:
+            raise CoachError(f"Game is not in the local catalog: {uuid}")
+        return game
 
     def save_review(
         self,
@@ -1015,6 +1148,13 @@ class ReviewRepository:
         payload = json.dumps(review.raw, ensure_ascii=False, separators=(",", ":"))
         account_id = self._registered_account_for_source(metadata.path)
         with closing(self._connect()) as connection:
+            if account_id is not None:
+                account = connection.execute(
+                    "SELECT nickname FROM majsoul_accounts WHERE account_id = ?",
+                    (account_id,),
+                ).fetchone()
+                if account is not None:
+                    player_name = str(account["nickname"])
             connection.execute(
                 """
                 INSERT INTO reviews (
@@ -1072,17 +1212,28 @@ class ReviewRepository:
         return account_id
 
     def _registered_account_for_source(self, source: str) -> int | None:
-        account_id = extract_koromo_player_id(source)
-        if account_id is None:
+        koromo_account_id = extract_koromo_account_id(source)
+        if koromo_account_id is None:
             return None
         with closing(self._connect()) as connection:
             row = connection.execute(
-                "SELECT account_id FROM majsoul_accounts WHERE account_id = ?",
-                (account_id,),
+                """
+                SELECT account_id
+                FROM majsoul_accounts
+                WHERE koromo_account_id = ?
+                """,
+                (koromo_account_id,),
             ).fetchone()
         return int(row["account_id"]) if row is not None else None
 
-    def _backfill_account_reviews(self, account_id: int) -> list[str]:
+    def _backfill_account_reviews(
+        self,
+        *,
+        majsoul_uid: int,
+        koromo_account_id: int | None,
+    ) -> list[str]:
+        if koromo_account_id is None:
+            return []
         with closing(self._connect()) as connection:
             rows = connection.execute(
                 "SELECT id, source_path FROM reviews WHERE account_id IS NULL"
@@ -1090,11 +1241,21 @@ class ReviewRepository:
             matching = [
                 str(row["id"])
                 for row in rows
-                if extract_koromo_player_id(str(row["source_path"])) == account_id
+                if extract_koromo_account_id(str(row["source_path"]))
+                == koromo_account_id
             ]
             connection.executemany(
-                "UPDATE reviews SET account_id = ? WHERE id = ?",
-                ((account_id, review_id) for review_id in matching),
+                """
+                UPDATE reviews
+                SET account_id = ?,
+                    player_name = (
+                        SELECT nickname
+                        FROM majsoul_accounts
+                        WHERE account_id = ?
+                    )
+                WHERE id = ?
+                """,
+                ((majsoul_uid, majsoul_uid, review_id) for review_id in matching),
             )
             connection.commit()
         for review_id in matching:
@@ -1159,8 +1320,10 @@ class ReviewRepository:
             rows = connection.execute(
                 """
                 SELECT r.id, r.source_path, r.report_json_url,
-                       r.player_id, r.player_name,
-                       r.rule_display, r.model_tag, r.created_at, r.account_id,
+                       r.player_id,
+                       COALESCE(a.nickname, r.player_name) AS player_name,
+                       r.rule_display, r.model_tag, r.created_at,
+                       a.account_id AS majsoul_uid,
                        a.nickname AS account_nickname
                 FROM reviews AS r
                 LEFT JOIN majsoul_accounts AS a ON a.account_id = r.account_id
@@ -1175,10 +1338,14 @@ class ReviewRepository:
         with closing(self._connect()) as connection:
             row = connection.execute(
                 """
-                SELECT id, source_path, report_json_url, player_id, player_name,
-                       rule_display, model_tag, created_at, account_id
-                FROM reviews
-                WHERE id = ?
+                SELECT r.id, r.source_path, r.report_json_url, r.player_id,
+                       COALESCE(a.nickname, r.player_name) AS player_name,
+                       r.rule_display, r.model_tag, r.created_at,
+                       a.account_id AS majsoul_uid,
+                       a.nickname AS account_nickname
+                FROM reviews AS r
+                LEFT JOIN majsoul_accounts AS a ON a.account_id = r.account_id
+                WHERE r.id = ?
                 """,
                 (review_id,),
             ).fetchone()
@@ -1573,3 +1740,7 @@ def _profile_item_dict(row: sqlite3.Row) -> dict[str, Any]:
 
 def _now() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _timestamp(value: str) -> int:
+    return int(datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp())

@@ -20,7 +20,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="bind a user-confirmed Mahjong Soul account to the local profile",
     )
     account_parser.add_argument("nickname")
-    account_parser.add_argument("account_id", type=int)
+    account_parser.add_argument("majsoul_uid", type=int)
+    account_parser.add_argument("--owned-paipu-url")
 
     commands.add_parser(
         "profile", help="show local accounts and compact coaching memory"
@@ -84,7 +85,8 @@ def main() -> None:
         "setup": service.check_setup,
         "account-bind": lambda: service.bind_majsoul_account(
             nickname=args.nickname,
-            account_id=args.account_id,
+            majsoul_uid=args.majsoul_uid,
+            owned_paipu_url=args.owned_paipu_url,
         ),
         "profile": service.local_profile,
         "preferences": service.analysis_preferences,

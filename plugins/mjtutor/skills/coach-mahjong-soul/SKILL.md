@@ -70,13 +70,20 @@ gameplay analysis.
 ## Local Identity
 
 - Treat one MJTutor installation as one local human profile. Do not ask for, create, or route by a user key. The local human may bind more than one Mahjong Soul account.
-- Use Koromo as MJTutor's ranked-game catalog. Display each account as nickname plus its Mahjong Soul account ID, represented as `account_id` in Koromo data; nicknames are neither unique nor stable.
-- Call `bind_majsoul_account` only after the user confirms the Mahjong Soul account ID belongs to them. Never claim a same-named search result automatically.
+- Use Koromo as MJTutor's ranked-game catalog. Display each account as nickname plus
+  the profile UID shown in Mahjong Soul. Keep that `majsoul_uid` separate from
+  Koromo's internal `koromo_account_id`; nicknames are neither unique nor stable.
+- Call `bind_majsoul_account` only after the user confirms the profile UID and
+  nickname. Prefer an `owned_paipu_url` that the user confirms belongs to that
+  account so MJTutor can derive the internal catalog ID. Never infer ownership from
+  a same-named search result or treat the paipu suffix as the profile UID.
 - Use `open_game_catalog` for routine browsing, filtering, syncing, and selection. Use `list_koromo_games` only when the conversation needs a compact page of metadata.
 - Opening the catalog may call `sync_koromo_games` after a minimum interval. This is opportunistic incremental sync, not a resident background process. Manual refresh may use `force=true`.
 - A selected game only calls `prepare_selected_game_review`; it does not itself submit to Mortal or start analysis. When the user then asks to review it, continue with step 4; involve the user only if the review button remains unavailable after the bounded wait.
 - If sync reports `verification_required`, keep serving the local cache and explain that Koromo currently requires its browser challenge or a site-owner access key. Never solve, scrape around, or bypass that gate.
-- A Mahjong Soul paipu viewer suffix may add account provenance when it decodes to a confirmed Mahjong Soul account ID. A review without account provenance still belongs to the local profile and needs no player binding.
+- A Mahjong Soul paipu viewer suffix contains Koromo's internal account ID, not the
+  profile UID. Link it to an account only after that mapping has been confirmed. A
+  review without account provenance still belongs to the local profile.
 - Koromo is a third-party, delayed, potentially incomplete catalog. Its Gold, Jade, and Throne ranked coverage does not prove that missing games did not occur.
 
 ## Long-Term Memory

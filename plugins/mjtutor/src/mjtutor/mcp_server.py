@@ -20,9 +20,9 @@ CATALOG_URI = "ui://mjtutor/game-catalog.html"
     visibility=["model", "app"],
     title="Open MJTutor game catalog",
     description=(
-        "Open the interactive local Koromo game catalog. Use this when the user wants "
-        "to browse, filter, sync, or choose a ranked game without listing every "
-        "game in chat."
+        "Open the interactive local game catalog. Use this when the user wants to "
+        "browse imported reviews, sync Koromo, or choose a game without listing "
+        "every record in chat."
     ),
 )
 def open_game_catalog(
@@ -41,7 +41,7 @@ apps.add_html_resource(
     ),
     name="MJTutor game catalog",
     title="MJTutor 牌局目录",
-    description="Browse, filter, sync, and choose locally cached Koromo games.",
+    description="Browse imported reviews and cached Koromo games.",
     prefers_border=False,
 )
 
@@ -50,7 +50,7 @@ mcp = MCPServer("MJTutor", version=__version__, extensions=[apps])
 
 @mcp.tool(meta={"ui": {"visibility": ["app"]}})
 def query_game_catalog(
-    account_id: int | None = None,
+    majsoul_uid: int | None = None,
     rank: int | None = None,
     reviewed: bool | None = None,
     start_time: int | None = None,
@@ -64,7 +64,7 @@ def query_game_catalog(
     contents to the model transcript. Conversation clients should use list_koromo_games.
     """
     result = service.list_koromo_games(
-        account_id=account_id,
+        majsoul_uid=majsoul_uid,
         rank=rank,
         reviewed=reviewed,
         start_time=start_time,
@@ -135,24 +135,28 @@ def import_mortal_web_report(
 @mcp.tool()
 def bind_majsoul_account(
     nickname: str,
-    account_id: int,
+    majsoul_uid: int,
+    owned_paipu_url: str | None = None,
+    koromo_account_id: int | None = None,
 ) -> dict[str, Any]:
     """Bind or refresh a confirmed Mahjong Soul account for the local user.
 
-    account_id is the numeric Mahjong Soul account ID used by the ranked-game
-    catalog. Nicknames are only display and search history. Never select a
-    same-named result without user confirmation. Matching existing paipu reviews
-    receive this account as provenance automatically.
+    majsoul_uid is the numeric UID shown in the user's Mahjong Soul profile.
+    Pass a paipu URL confirmed to belong to that user so MJTutor can derive the
+    separate Koromo catalog ID. koromo_account_id is an advanced fallback when a
+    confirmed owned paipu is unavailable. Nicknames are display history only.
     """
     return service.bind_majsoul_account(
         nickname=nickname,
-        account_id=account_id,
+        majsoul_uid=majsoul_uid,
+        owned_paipu_url=owned_paipu_url,
+        koromo_account_id=koromo_account_id,
     )
 
 
 @mcp.tool(meta={"ui": {"visibility": ["model", "app"]}})
 def sync_koromo_games(
-    account_id: int | None = None,
+    majsoul_uid: int | None = None,
     force: bool = False,
     lookback_days: int = 365,
     max_pages: int = 10,
@@ -163,7 +167,7 @@ def sync_koromo_games(
     an access key; MJTutor records that state and continues serving cached games.
     """
     return service.sync_koromo_games(
-        account_id=account_id,
+        majsoul_uid=majsoul_uid,
         force=force,
         lookback_days=lookback_days,
         max_pages=max_pages,
@@ -172,7 +176,7 @@ def sync_koromo_games(
 
 @mcp.tool(meta={"ui": {"visibility": ["model", "app"]}})
 def list_koromo_games(
-    account_id: int | None = None,
+    majsoul_uid: int | None = None,
     rank: int | None = None,
     reviewed: bool | None = None,
     start_time: int | None = None,
@@ -181,13 +185,13 @@ def list_koromo_games(
     offset: int = 0,
     auto_sync: bool = False,
 ) -> dict[str, Any]:
-    """Return one compact page of locally cached Koromo hanchan games.
+    """Return one compact page of local reviews and cached Koromo hanchan games.
 
     Times are Unix seconds. Use open_game_catalog for interactive browsing instead of
     sending a large game list into the conversation.
     """
     return service.list_koromo_games(
-        account_id=account_id,
+        majsoul_uid=majsoul_uid,
         rank=rank,
         reviewed=reviewed,
         start_time=start_time,
@@ -200,10 +204,10 @@ def list_koromo_games(
 
 @mcp.tool(meta={"ui": {"visibility": ["model", "app"]}})
 def get_koromo_sync_status(
-    account_id: int | None = None,
+    majsoul_uid: int | None = None,
 ) -> dict[str, Any]:
     """Return compact local cache and Koromo sync status for bound accounts."""
-    return service.koromo_sync_status(account_id=account_id)
+    return service.koromo_sync_status(majsoul_uid=majsoul_uid)
 
 
 @mcp.tool(meta={"ui": {"visibility": ["model", "app"]}})
@@ -211,7 +215,7 @@ def prepare_selected_game_review(
     uuid: str,
     model_tag: str | None = None,
 ) -> dict[str, Any]:
-    """Prepare Mortal Web for one game selected from the local Koromo catalog.
+    """Prepare a game selected from the combined local game catalog.
 
     This only creates the prefilled URL. Opening and submitting remain browser actions;
     this tool itself does not start external analysis.

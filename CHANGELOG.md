@@ -7,6 +7,22 @@
 
 暂无。
 
+## [1.2.0] - 2026-08-14
+
+### 新增
+
+- 牌局目录合并牌谱屋缓存与本地 Mortal 复盘；牌谱屋暂时无法同步时，已导入的
+  牌谱仍可浏览和看牌。
+- 同一牌谱支持展示多份 Mortal 复盘及其模型版本。
+
+### 修复
+
+- 区分雀魂个人资料 UID 与牌谱屋内部账号 ID，并通过已确认归属的牌谱链接建立
+  关联，避免使用错误编号同步牌局。
+- 已关联复盘统一显示确认的雀魂昵称，不再显示 Mortal 的匿名座位名。
+- 牌局目录状态改为同时显示牌谱数和复盘数，并正确处理本地复盘缺少顺位与点数的
+  情况。
+
 ## [1.1.1] - 2026-08-13
 
 ### 新增
@@ -127,7 +143,8 @@
 
 - 从公开测试夹具中移除真实雀魂牌谱码。
 
-[Unreleased]: https://github.com/ukicey/MJTutor/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/ukicey/MJTutor/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/ukicey/MJTutor/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/ukicey/MJTutor/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/ukicey/MJTutor/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/ukicey/MJTutor/compare/v1.0.0...v1.0.1

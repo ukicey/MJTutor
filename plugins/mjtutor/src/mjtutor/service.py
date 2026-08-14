@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .errors import CoachError
+from .koromo import extract_koromo_account_id
 from .koromo_catalog import (
     DEFAULT_INITIAL_LOOKBACK_DAYS,
     DEFAULT_SYNC_INTERVAL_MINUTES,
@@ -147,7 +148,7 @@ class CoachService:
             "source_log_url": source_log_url,
             "report_json_url": imported.report_json_url,
             "viewer_url": viewer["viewer_url"],
-            "account_id": account_id,
+            "majsoul_uid": account_id,
             "summary": imported.review.summary(),
         }
 
@@ -155,40 +156,69 @@ class CoachService:
         self,
         *,
         nickname: str,
-        account_id: int,
+        majsoul_uid: int,
+        owned_paipu_url: str | None = None,
+        koromo_account_id: int | None = None,
     ) -> dict[str, Any]:
-        return self.repository.bind_koromo_account(
+        if owned_paipu_url is not None:
+            decoded = extract_koromo_account_id(validate_majsoul_url(owned_paipu_url))
+            if decoded is None:
+                raise CoachError(
+                    "The owned paipu URL does not contain a usable catalog account ID"
+                )
+            if koromo_account_id is not None and koromo_account_id != decoded:
+                raise CoachError(
+                    "koromo_account_id does not match the owned paipu URL"
+                )
+            koromo_account_id = decoded
+        return self.repository.bind_majsoul_account(
             nickname=nickname,
-            koromo_player_id=account_id,
+            majsoul_uid=majsoul_uid,
+            koromo_account_id=koromo_account_id,
         )
 
     def sync_koromo_games(
         self,
         *,
-        account_id: int | None = None,
+        majsoul_uid: int | None = None,
         force: bool = False,
         lookback_days: int = DEFAULT_INITIAL_LOOKBACK_DAYS,
         max_pages: int = 10,
     ) -> dict[str, Any]:
         identity = self.repository.get_local_identity()
         accounts = identity["accounts"]
-        if account_id is not None:
+        if majsoul_uid is not None:
             accounts = [
-                item for item in accounts if int(item["account_id"]) == account_id
+                item for item in accounts if int(item["majsoul_uid"]) == majsoul_uid
             ]
             if not accounts:
-                raise CoachError(f"Mahjong Soul account is not bound: {account_id}")
+                raise CoachError(f"Mahjong Soul UID is not bound: {majsoul_uid}")
         lookback_days = max(1, min(int(lookback_days), 3650))
         max_pages = max(1, min(int(max_pages), 50))
         results = [
             self._sync_koromo_account(
-                account_id=int(account["account_id"]),
+                majsoul_uid=int(account["majsoul_uid"]),
+                koromo_account_id=int(account["koromo_account_id"]),
                 force=force,
                 lookback_days=lookback_days,
                 max_pages=max_pages,
             )
             for account in accounts
+            if account["koromo_account_id"] is not None
         ]
+        results.extend(
+            {
+                "majsoul_uid": int(account["majsoul_uid"]),
+                "koromo_account_id": None,
+                "nickname": str(account["nickname"]),
+                "status": "identity_link_required",
+                "skipped": True,
+                "skip_reason": "owned_paipu_url_required",
+                "cached_game_count": 0,
+            }
+            for account in accounts
+            if account["koromo_account_id"] is None
+        )
         return {
             "accounts": results,
             "automatic_policy": (
@@ -201,12 +231,13 @@ class CoachService:
     def _sync_koromo_account(
         self,
         *,
-        account_id: int,
+        majsoul_uid: int,
+        koromo_account_id: int,
         force: bool,
         lookback_days: int,
         max_pages: int,
     ) -> dict[str, Any]:
-        current = self.repository.get_koromo_sync_status(account_id=account_id)[
+        current = self.repository.get_koromo_sync_status(account_id=majsoul_uid)[
             "accounts"
         ][0]
         last_attempt = _parse_timestamp(current.get("last_attempt_at"))
@@ -233,13 +264,15 @@ class CoachService:
         try:
             for _ in range(max_pages):
                 page = self.koromo_client.fetch_games(
-                    account_id=account_id,
+                    koromo_account_id=koromo_account_id,
                     start_ms=start_ms,
                     end_ms=end_ms,
                     limit=100,
                 )
                 for game in page:
-                    fetched[game.uuid] = game.as_dict(account_id=account_id)
+                    fetched[game.uuid] = game.as_dict(
+                        koromo_account_id=koromo_account_id
+                    )
                 if len(page) < 100:
                     break
                 oldest_start_ms = min(game.start_time for game in page) * 1000
@@ -248,7 +281,7 @@ class CoachService:
                 end_ms = oldest_start_ms - 1
         except KoromoVerificationRequired as error:
             state = self.repository.record_koromo_sync(
-                account_id=account_id,
+                account_id=majsoul_uid,
                 status="verification_required",
                 success=False,
                 error=str(error),
@@ -263,7 +296,7 @@ class CoachService:
             }
         except KoromoAccessError as error:
             state = self.repository.record_koromo_sync(
-                account_id=account_id,
+                account_id=majsoul_uid,
                 status="unavailable",
                 success=False,
                 error=str(error),
@@ -278,7 +311,7 @@ class CoachService:
             }
 
         saved = self.repository.save_koromo_games(
-            account_id=account_id,
+            account_id=majsoul_uid,
             games=list(fetched.values()),
         )
         latest_game_start = max(
@@ -286,7 +319,7 @@ class CoachService:
             default=None,
         )
         state = self.repository.record_koromo_sync(
-            account_id=account_id,
+            account_id=majsoul_uid,
             status="ok",
             success=True,
             latest_game_start=latest_game_start,
@@ -301,7 +334,7 @@ class CoachService:
     def list_koromo_games(
         self,
         *,
-        account_id: int | None = None,
+        majsoul_uid: int | None = None,
         rank: int | None = None,
         reviewed: bool | None = None,
         start_time: int | None = None,
@@ -310,9 +343,9 @@ class CoachService:
         offset: int = 0,
         auto_sync: bool = False,
     ) -> dict[str, Any]:
-        sync = self.sync_koromo_games(account_id=account_id) if auto_sync else None
+        sync = self.sync_koromo_games(majsoul_uid=majsoul_uid) if auto_sync else None
         result = self.repository.list_koromo_games(
-            account_id=account_id,
+            majsoul_uid=majsoul_uid,
             rank=rank,
             reviewed=reviewed,
             start_time=start_time,
@@ -322,14 +355,15 @@ class CoachService:
         )
         result["sync"] = sync
         result["catalog_notice"] = (
-            "Koromo is third-party, delayed, and potentially incomplete. Only cached "
-            "public ranked-game metadata is returned; no Mortal analysis is started."
+            "The catalog combines imported local reviews with cached Koromo metadata. "
+            "Koromo is third-party, delayed, and potentially incomplete; browsing "
+            "does not start Mortal analysis."
         )
         return result
 
-    def koromo_sync_status(self, *, account_id: int | None = None) -> dict[str, Any]:
+    def koromo_sync_status(self, *, majsoul_uid: int | None = None) -> dict[str, Any]:
         return {
-            **self.repository.get_koromo_sync_status(account_id=account_id),
+            **self.repository.get_koromo_sync_status(account_id=majsoul_uid),
             "provider": self.koromo_client.status(),
             "minimum_sync_interval_minutes": DEFAULT_SYNC_INTERVAL_MINUTES,
         }
@@ -340,10 +374,10 @@ class CoachService:
         *,
         model_tag: str | None = None,
     ) -> dict[str, Any]:
-        game = self.repository.get_koromo_game(uuid.strip())
+        game = self.repository.get_catalog_game(uuid.strip())
         compact_game = {
             "uuid": game["uuid"],
-            "account_id": game["account_id"],
+            "majsoul_uid": game["majsoul_uid"],
             "account_nickname": game["account_nickname"],
             "mode_label": game["mode_label"],
             "start_time": game["start_time"],
@@ -352,6 +386,7 @@ class CoachService:
             "paipu_url": game["paipu_url"],
             "reviewed": game["reviewed"],
             "review_id": game["review_id"],
+            "reviews": game.get("reviews", []),
         }
         if game["reviewed"]:
             return {

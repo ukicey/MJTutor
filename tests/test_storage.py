@@ -21,8 +21,8 @@ def _review_fixture() -> tuple[LogMetadata, ReviewDocument, dict[str, object]]:
     return metadata, ReviewDocument.from_json(raw), raw
 
 
-def _paipu_metadata(metadata: LogMetadata, account_id: int) -> LogMetadata:
-    encoded = encode_paipu_account_id(account_id)
+def _paipu_metadata(metadata: LogMetadata, koromo_account_id: int) -> LogMetadata:
+    encoded = encode_paipu_account_id(koromo_account_id)
     return replace(
         metadata,
         path=f"https://game.maj-soul.com/1/?paipu=260618-example_a{encoded}",
@@ -99,8 +99,9 @@ def test_account_binding_backfills_provenance_and_tracks_nicknames(
 ) -> None:
     repository = ReviewRepository(tmp_path / "coach.sqlite3")
     metadata, review, _ = _review_fixture()
-    account_id = 1_355_604
-    metadata = _paipu_metadata(metadata, account_id)
+    majsoul_uid = 12_345_678
+    koromo_account_id = 8_765_432
+    metadata = _paipu_metadata(metadata, koromo_account_id)
     review_id = make_review_id(metadata, 0)
     repository.save_review(
         review_id=review_id,
@@ -109,19 +110,24 @@ def test_account_binding_backfills_provenance_and_tracks_nicknames(
         review=review,
     )
 
-    account = repository.bind_koromo_account(
+    account = repository.bind_majsoul_account(
         nickname="Asapin",
-        koromo_player_id=account_id,
+        majsoul_uid=majsoul_uid,
+        koromo_account_id=koromo_account_id,
     )
 
-    assert account["account_id"] == account_id
+    assert account["majsoul_uid"] == majsoul_uid
+    assert account["koromo_account_id"] == koromo_account_id
     assert account["bound_review_ids"] == [review_id]
-    assert repository.list_reviews()[0]["account_id"] == account_id
+    assert repository.list_reviews()[0]["majsoul_uid"] == majsoul_uid
+    assert repository.list_reviews()[0]["player_name"] == "Asapin"
+    assert repository.get_review_metadata(review_id)["player_name"] == "Asapin"
     assert repository.observation_summary()["decision_count"] == 2
 
-    repository.bind_koromo_account(
+    repository.bind_majsoul_account(
         nickname="New Asapin",
-        koromo_player_id=account_id,
+        majsoul_uid=majsoul_uid,
+        koromo_account_id=koromo_account_id,
     )
     identity = repository.get_local_identity()
     refreshed = identity["accounts"][0]
@@ -138,9 +144,14 @@ def test_account_binding_backfills_provenance_and_tracks_nicknames(
 def test_reimport_keeps_account_provenance(tmp_path: Path) -> None:
     repository = ReviewRepository(tmp_path / "coach.sqlite3")
     metadata, review, _ = _review_fixture()
-    account_id = 9_876
-    repository.bind_koromo_account(nickname="Owner", koromo_player_id=account_id)
-    paipu_metadata = _paipu_metadata(metadata, account_id)
+    majsoul_uid = 9_876
+    koromo_account_id = 7_654
+    repository.bind_majsoul_account(
+        nickname="Owner",
+        majsoul_uid=majsoul_uid,
+        koromo_account_id=koromo_account_id,
+    )
+    paipu_metadata = _paipu_metadata(metadata, koromo_account_id)
     review_id = make_review_id(paipu_metadata, 0)
 
     assert (
@@ -150,8 +161,9 @@ def test_reimport_keeps_account_provenance(tmp_path: Path) -> None:
             player_id=0,
             review=review,
         )
-        == account_id
+        == majsoul_uid
     )
+    assert repository.list_reviews()[0]["player_name"] == "Owner"
     assert (
         repository.save_review(
             review_id=review_id,
@@ -159,9 +171,9 @@ def test_reimport_keeps_account_provenance(tmp_path: Path) -> None:
             player_id=0,
             review=review,
         )
-        == account_id
+        == majsoul_uid
     )
-    assert repository.list_reviews()[0]["account_id"] == account_id
+    assert repository.list_reviews()[0]["majsoul_uid"] == majsoul_uid
 
 
 def test_profile_items_use_single_local_owner(tmp_path: Path) -> None:
@@ -390,10 +402,70 @@ def test_current_single_player_database_migrates_account_and_profile(
     repository = ReviewRepository(database_path)
     profile = repository.coaching_profile()
 
-    assert profile["local_profile"]["accounts"][0]["account_id"] == account_id
-    assert repository.list_reviews()[0]["account_id"] == account_id
+    assert profile["local_profile"]["accounts"][0]["majsoul_uid"] == account_id
+    assert (
+        profile["local_profile"]["accounts"][0]["koromo_account_id"]
+        == account_id
+    )
+    assert repository.list_reviews()[0]["majsoul_uid"] == account_id
     assert profile["confirmed_profile"][0]["statement"] == "Review every week."
     assert repository.observation_summary()["decision_count"] == 2
+
+
+def test_schema_v5_adds_separate_koromo_account_id(tmp_path: Path) -> None:
+    database_path = tmp_path / "schema-v5.sqlite3"
+    with sqlite3.connect(database_path) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE local_profile (
+                id INTEGER PRIMARY KEY,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE majsoul_accounts (
+                account_id INTEGER PRIMARY KEY,
+                local_profile_id INTEGER NOT NULL,
+                nickname TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE reviews (
+                id TEXT PRIMARY KEY,
+                source_path TEXT NOT NULL,
+                source_sha256 TEXT NOT NULL,
+                player_id INTEGER NOT NULL,
+                player_name TEXT NOT NULL,
+                rule_display TEXT NOT NULL,
+                model_tag TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                report_json TEXT NOT NULL,
+                report_json_url TEXT,
+                account_id INTEGER
+            );
+            PRAGMA user_version = 5;
+            """
+        )
+        timestamp = "2026-01-01T00:00:00+00:00"
+        connection.execute(
+            "INSERT INTO local_profile VALUES (1, ?, ?)", (timestamp, timestamp)
+        )
+        connection.execute(
+            "INSERT INTO majsoul_accounts VALUES (?, 1, ?, ?, ?)",
+            (12_345_678, "LocalPlayer", timestamp, timestamp),
+        )
+
+    repository = ReviewRepository(database_path)
+    identity = repository.get_local_identity()["accounts"][0]
+
+    assert identity["majsoul_uid"] == 12_345_678
+    assert identity["koromo_account_id"] is None
+    with repository._connect() as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 6
+        indexes = {
+            row["name"]
+            for row in connection.execute("PRAGMA index_list(majsoul_accounts)")
+        }
+    assert "idx_majsoul_accounts_koromo" in indexes
 
 
 def test_multiple_legacy_players_are_not_silently_merged(tmp_path: Path) -> None:
