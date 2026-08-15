@@ -264,6 +264,13 @@ def test_mcp_app_resource_is_packaged_and_registered() -> None:
     assert 'window.location.protocol === "file:"' in app
     assert "这是插件界面文件，不能直接打开" in app
     assert "未收到牌局目录数据" in app
+    assert 'id="filters-toggle"' in app
+    assert 'aria-expanded="false"' in app
+    assert 'id="filters" aria-label="牌局筛选" hidden' in app
+    assert '$("filters").hidden = !expanded' in app
+    assert 'id="notice-close"' in app
+    assert 'aria-label="关闭提示"' in app
+    assert "state.noticeDismissed = true" in app
 
 
 def test_catalog_tool_keeps_game_rows_out_of_model_content(

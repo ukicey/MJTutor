@@ -64,6 +64,20 @@
       button:disabled { cursor: default; opacity: .55; }
       .primary { border-color: var(--green); background: var(--green); color: #fff; }
       .primary:hover { filter: brightness(.94); }
+      .toggle-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-width: 76px;
+      }
+      .toggle-button .chevron {
+        display: inline-block;
+        font-size: 14px;
+        line-height: 1;
+        transition: transform 160ms ease;
+      }
+      .toggle-button[aria-expanded="true"] .chevron { transform: rotate(180deg); }
 
       .filters {
         display: grid;
@@ -71,6 +85,7 @@
         gap: 10px;
         padding: 14px 0;
       }
+      .filters[hidden] { display: none; }
       label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
       select, input {
         width: 100%;
@@ -84,15 +99,31 @@
 
       .notice {
         display: none;
+        align-items: flex-start;
+        gap: 10px;
         margin-bottom: 12px;
-        padding: 10px 12px;
+        padding: 8px 8px 8px 12px;
         border-left: 3px solid var(--gold);
         background: color-mix(in srgb, var(--gold) 9%, var(--surface));
         color: var(--ink);
         font-size: 13px;
         line-height: 1.5;
       }
-      .notice.visible { display: block; }
+      .notice.visible { display: flex; }
+      .notice-text { flex: 1 1 auto; min-width: 0; padding: 2px 0; }
+      .notice-close {
+        flex: 0 0 28px;
+        width: 28px;
+        height: 28px;
+        min-height: 28px;
+        padding: 0;
+        border-color: transparent;
+        background: transparent;
+        color: var(--muted);
+        font-size: 20px;
+        line-height: 1;
+      }
+      .notice-close:hover { border-color: var(--line); color: var(--ink); }
 
       .table-wrap { overflow-x: auto; border-top: 1px solid var(--line); }
       table { width: 100%; border-collapse: collapse; table-layout: fixed; }
@@ -153,13 +184,20 @@
           <div class="status" id="status">读取本地复盘...</div>
         </div>
         <div class="actions">
+          <button
+            id="filters-toggle"
+            class="toggle-button"
+            type="button"
+            aria-controls="filters"
+            aria-expanded="false"
+          >筛选 <span class="chevron" aria-hidden="true">⌄</span></button>
           <button id="koromo" type="button">牌谱屋</button>
           <button id="expand" type="button">全屏</button>
           <button id="sync" class="primary" type="button">同步牌谱屋</button>
         </div>
       </header>
 
-      <section class="filters" aria-label="牌局筛选">
+      <section class="filters" id="filters" aria-label="牌局筛选" hidden>
         <label>账号<select id="account"><option value="">全部账号</option></select></label>
         <label>顺位<select id="rank"><option value="">全部顺位</option><option value="1">1 位</option><option value="2">2 位</option><option value="3">3 位</option><option value="4">4 位</option></select></label>
         <label>复盘<select id="reviewed"><option value="">全部</option><option value="false">未复盘</option><option value="true">已复盘</option></select></label>
@@ -167,7 +205,16 @@
         <label>结束日期<input id="to" type="date" /></label>
       </section>
 
-      <div class="notice" id="notice" role="status"></div>
+      <div class="notice" id="notice" role="status">
+        <span class="notice-text" id="notice-text"></span>
+        <button
+          class="notice-close"
+          id="notice-close"
+          type="button"
+          aria-label="关闭提示"
+          title="关闭提示"
+        >&times;</button>
+      </div>
       <div class="table-wrap">
         <table>
           <thead><tr><th>记录时间</th><th>场次</th><th>顺位</th><th>终局点数</th><th>复盘模型</th><th></th></tr></thead>
@@ -186,7 +233,15 @@
 
     <script>
       const PAGE_SIZE = 20;
-      const state = { offset: 0, total: 0, items: [], accounts: [], loading: false };
+      const state = {
+        offset: 0,
+        total: 0,
+        items: [],
+        accounts: [],
+        loading: false,
+        noticeText: "",
+        noticeDismissed: false,
+      };
       const pending = new Map();
       let requestId = 1;
       const $ = (id) => document.getElementById(id);
@@ -243,8 +298,19 @@
       }
 
       function setNotice(text) {
-        $("notice").textContent = text || "";
-        $("notice").classList.toggle("visible", Boolean(text));
+        const nextText = text || "";
+        if (nextText !== state.noticeText) state.noticeDismissed = false;
+        state.noticeText = nextText;
+        $("notice-text").textContent = nextText;
+        $("notice").classList.toggle(
+          "visible",
+          Boolean(nextText) && !state.noticeDismissed,
+        );
+      }
+
+      function setFiltersExpanded(expanded) {
+        $("filters").hidden = !expanded;
+        $("filters-toggle").setAttribute("aria-expanded", String(expanded));
       }
 
       function setAccounts(syncStatus) {
@@ -387,6 +453,14 @@
       }, { passive: true });
 
       $("sync").addEventListener("click", sync);
+      $("filters-toggle").addEventListener("click", () => {
+        const expanded = $("filters-toggle").getAttribute("aria-expanded") === "true";
+        setFiltersExpanded(!expanded);
+      });
+      $("notice-close").addEventListener("click", () => {
+        state.noticeDismissed = true;
+        $("notice").classList.remove("visible");
+      });
       $("koromo").addEventListener("click", async () => {
         const prompt = "请在侧边浏览器打开牌谱屋：https://amae-koromo.sapk.ch/ 。只打开页面，不要代替我搜索、提交或登录。";
         if (window.openai?.sendFollowUpMessage) {
