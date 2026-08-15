@@ -150,12 +150,12 @@
       <header class="topbar">
         <div>
           <h1>MJTutor 牌局目录</h1>
-          <div class="status" id="status">读取本地目录...</div>
+          <div class="status" id="status">读取本地复盘...</div>
         </div>
         <div class="actions">
           <button id="koromo" type="button">牌谱屋</button>
           <button id="expand" type="button">全屏</button>
-          <button id="sync" class="primary" type="button">同步</button>
+          <button id="sync" class="primary" type="button">同步牌谱屋</button>
         </div>
       </header>
 
@@ -256,12 +256,14 @@
         ).join("");
         if ([...$("account").options].some((option) => option.value === selected)) $("account").value = selected;
 
+        const keyRequired = accounts.find((item) => item.status === "personal_key_required");
         const blocked = accounts.find((item) => item.status === "verification_required");
         const unavailable = accounts.find((item) => item.status === "unavailable");
         const unlinked = accounts.find((item) => item.status === "identity_link_required");
-        if (blocked) setNotice("暂时无法从牌谱屋同步新牌局；已有牌谱和复盘仍可正常查看。稍后可以再次同步。");
-        else if (unavailable) setNotice("牌谱屋暂时无法访问，当前继续显示本地缓存。");
-        else if (unlinked) setNotice("还需要一条确认属于该账号的雀魂牌谱链接，才能关联牌谱屋目录；已有本地复盘仍会正常显示。");
+        if (keyRequired) setNotice("当前显示本地复盘。配置个人牌谱屋 API Key 后，可额外同步公开牌局；MJTutor 不提供云端代理或共享密钥。");
+        else if (blocked) setNotice("当前显示本地复盘；牌谱屋未接受已配置的访问凭据，请检查个人 API Key。");
+        else if (unavailable) setNotice("当前显示本地复盘；牌谱屋同步暂时不可用。");
+        else if (unlinked) setNotice("当前显示本地复盘。若要同步牌谱屋牌局，还需提供一条确认属于该账号的雀魂牌谱链接。");
         else setNotice("");
       }
 

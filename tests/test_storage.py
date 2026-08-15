@@ -403,10 +403,7 @@ def test_current_single_player_database_migrates_account_and_profile(
     profile = repository.coaching_profile()
 
     assert profile["local_profile"]["accounts"][0]["majsoul_uid"] == account_id
-    assert (
-        profile["local_profile"]["accounts"][0]["koromo_account_id"]
-        == account_id
-    )
+    assert profile["local_profile"]["accounts"][0]["koromo_account_id"] == account_id
     assert repository.list_reviews()[0]["majsoul_uid"] == account_id
     assert profile["confirmed_profile"][0]["statement"] == "Review every week."
     assert repository.observation_summary()["decision_count"] == 2

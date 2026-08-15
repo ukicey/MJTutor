@@ -5,6 +5,8 @@ import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from threading import Lock
+from time import monotonic, sleep
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -23,7 +25,8 @@ KOROMO_DATA_MIRRORS = (
 HANCHAN_MODES = (9, 12, 16)
 MODE_LABELS = {9: "金南", 12: "玉南", 16: "王座南"}
 DEFAULT_INITIAL_LOOKBACK_DAYS = 365
-DEFAULT_SYNC_INTERVAL_MINUTES = 30
+DEFAULT_SYNC_INTERVAL_MINUTES = 24 * 60
+MIN_REQUEST_INTERVAL_SECONDS = 1.0
 
 
 class KoromoAccessError(CoachError):
@@ -67,11 +70,21 @@ class KoromoCatalogClient:
         timeout: float = 10.0,
         access_token: str | None = None,
         opener: Callable[..., Any] = urlopen,
+        min_request_interval_seconds: float = MIN_REQUEST_INTERVAL_SECONDS,
+        clock: Callable[[], float] = monotonic,
+        sleeper: Callable[[float], None] = sleep,
     ) -> None:
         self.mirrors = mirrors
         self.timeout = timeout
         self.access_token = access_token or os.environ.get("MJTUTOR_KOROMO_TOKEN")
         self._opener = opener
+        self._min_request_interval_seconds = max(
+            0.0, float(min_request_interval_seconds)
+        )
+        self._clock = clock
+        self._sleeper = sleeper
+        self._next_request_at = 0.0
+        self._request_lock = Lock()
 
     def status(self) -> dict[str, Any]:
         return {
@@ -80,9 +93,12 @@ class KoromoCatalogClient:
             "coverage": "four-player Gold, Jade, and Throne ranked rooms",
             "hanchan_modes": list(HANCHAN_MODES),
             "access_token_configured": bool(self.access_token),
+            "minimum_request_interval_seconds": self._min_request_interval_seconds,
             "access_note": (
-                "Koromo may require its browser challenge or an access key. "
-                "MJTutor does not solve or bypass that challenge."
+                "The game catalog works as a local review browser without Koromo. "
+                "Optional synchronization requires each user to configure a personal "
+                "site-owner access key; MJTutor has no hosted proxy and does not ship "
+                "or forward a shared key."
             ),
         }
 
@@ -127,16 +143,17 @@ class KoromoCatalogClient:
                 method="GET",
             )
             try:
+                self._wait_for_request_slot()
                 with self._opener(request, timeout=self.timeout) as response:
                     return json.loads(response.read().decode("utf-8"))
             except HTTPError as error:
                 body = error.read().decode("utf-8", errors="replace")
                 if error.code == 429 and "x-cap-token-required" in body:
                     raise KoromoVerificationRequired(
-                        "Koromo requires its browser challenge or an authorized "
-                        "access key. Open Koromo normally in a browser, or configure "
-                        "an access key supplied "
-                        "by the site owner as MJTUTOR_KOROMO_TOKEN."
+                        "Local reviews remain available. Optional Koromo sync requires "
+                        "a personal access key from the site owner; configure it as "
+                        "MJTUTOR_KOROMO_TOKEN; MJTutor does not provide a hosted "
+                        "proxy or shared key."
                     ) from error
                 last_error = KoromoAccessError(
                     f"Koromo request failed with HTTP {error.code}"
@@ -148,6 +165,17 @@ class KoromoCatalogClient:
         raise KoromoAccessError(
             "Koromo could not be reached from any configured data mirror"
         ) from last_error
+
+    def _wait_for_request_slot(self) -> None:
+        with self._request_lock:
+            now = self._clock()
+            delay = self._next_request_at - now
+            if delay > 0:
+                self._sleeper(delay)
+                now = self._clock()
+            self._next_request_at = (
+                max(now, self._next_request_at) + self._min_request_interval_seconds
+            )
 
     def _headers(self) -> dict[str, str]:
         headers = {

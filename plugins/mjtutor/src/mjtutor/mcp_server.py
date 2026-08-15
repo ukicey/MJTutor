@@ -20,9 +20,9 @@ CATALOG_URI = "ui://mjtutor/game-catalog.html"
     visibility=["model", "app"],
     title="Open MJTutor game catalog",
     description=(
-        "Open the interactive local game catalog. Use this when the user wants to "
-        "browse imported reviews, sync Koromo, or choose a game without listing "
-        "every record in chat."
+        "Open the interactive catalog for locally saved reviews. Users with a "
+        "personal Koromo API key can also sync public games. Use this instead of "
+        "listing every record in chat."
     ),
 )
 def open_game_catalog(
@@ -41,7 +41,7 @@ apps.add_html_resource(
     ),
     name="MJTutor game catalog",
     title="MJTutor 牌局目录",
-    description="Browse imported reviews and cached Koromo games.",
+    description="Browse local reviews, with optional Koromo synchronization.",
     prefers_border=False,
 )
 
@@ -163,8 +163,9 @@ def sync_koromo_games(
 ) -> dict[str, Any]:
     """Incrementally sync bound-account hanchan metadata from Koromo into SQLite.
 
-    This does not analyze games with Mortal. Koromo may require its browser challenge or
-    an access key; MJTutor records that state and continues serving cached games.
+    This does not analyze games with Mortal. Without the user's own site-owner key,
+    MJTutor skips the network request and continues serving local reviews. It has no
+    hosted proxy or shared key.
     """
     return service.sync_koromo_games(
         majsoul_uid=majsoul_uid,
@@ -185,7 +186,7 @@ def list_koromo_games(
     offset: int = 0,
     auto_sync: bool = False,
 ) -> dict[str, Any]:
-    """Return one compact page of local reviews and cached Koromo hanchan games.
+    """Return one compact page of local reviews and optionally synced hanchan games.
 
     Times are Unix seconds. Use open_game_catalog for interactive browsing instead of
     sending a large game list into the conversation.
@@ -442,8 +443,9 @@ def _catalog_tool_result(result: dict[str, Any]) -> types.CallToolResult:
             types.TextContent(
                 type="text",
                 text=(
-                    f"Opened the local MJTutor catalog with {summary['total']} cached "
-                    "games. Game rows stay in component-only metadata."
+                    f"Opened the local MJTutor catalog with {summary['total']} saved "
+                    "entries. Koromo synchronization is optional. Game rows stay in "
+                    "component-only metadata."
                 ),
             )
         ],

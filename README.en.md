@@ -32,7 +32,8 @@ Mortal as a mistake.
 - Explain key decisions using scores, rivers, melds, and visible tiles.
 - Turn explicit feedback and recurring patterns across games into a long-term
   profile that can be confirmed, corrected, or forgotten.
-- Sync public games from Koromo and select games from an interactive catalog.
+- Browse and filter local reviews in the game catalog. With a personal Koromo
+  API key, you can also sync public games and select one for review.
 
 ## Installation
 
@@ -86,22 +87,30 @@ it never bypasses or completes verification for you.
 
 ## Game catalog
 
-After binding a Mahjong Soul account, ask Codex:
+Ask Codex:
 
 ```text
 Open my MJTutor game catalog.
 ```
 
-The catalog can filter games by account, placement, date, and review status.
-You can refresh it manually and select a game to review. Account binding is
-optional and does not affect direct review from a Mahjong Soul URL.
+The game catalog is primarily a browser for reviews already imported and saved
+locally. It can filter by account, placement, date, and review status, and lets
+you reopen a game for viewing or review. Using the local catalog does not require
+account binding and does not affect direct review from a Mahjong Soul URL.
 
-MJTutor identifies an account with the UID shown in the Mahjong Soul profile and
-its nickname. The first Koromo link also needs one paipu URL that you confirm
+To additionally sync public games from Koromo, you can bind a Mahjong Soul
+account. MJTutor identifies it with the UID shown in the Mahjong Soul profile
+and its nickname. The first Koromo link also needs one paipu URL that you confirm
 belongs to that account. MJTutor derives Koromo's separate internal account ID
 from the URL, so you do not need to find or remember it. Koromo data may be
-delayed, incomplete, or require additional verification; imported local reviews
-remain visible when access is restricted.
+delayed or incomplete.
+
+Synchronization requires a personal API key issued by the site owner and
+configured locally as `MJTUTOR_KOROMO_TOKEN`. MJTutor does not run a cloud
+service and never embeds, shares, or forwards the developer's key, so each user
+of the public plugin must request their own key. Never paste the key into a chat
+or issue, or commit it to GitHub. Without a configured key, the catalog stays
+local and does not send synchronization requests to Koromo.
 
 ## Long-term memory
 

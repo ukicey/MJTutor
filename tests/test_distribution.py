@@ -18,7 +18,8 @@ def test_distribution_versions_match() -> None:
         (PLUGIN_ROOT / ".codex-plugin" / "plugin.json").read_text(encoding="utf-8")
     )
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    assert manifest["version"] == project["project"]["version"] == mjtutor.__version__
+    manifest_base_version = manifest["version"].split("+", 1)[0]
+    assert manifest_base_version == project["project"]["version"] == mjtutor.__version__
 
 
 def test_plugin_starter_prompts_fit_host_limits() -> None:
@@ -140,6 +141,28 @@ def test_user_facing_account_terms_identify_mahjong_soul_account() -> None:
     assert "profile UID" in skill
     assert "个人资料”中显示的 UID" in chinese_readme
     assert "牌谱屋内部账号 ID" in chinese_readme
+
+
+def test_koromo_access_policy_is_user_facing_and_local_only() -> None:
+    client = (PLUGIN_ROOT / "src" / "mjtutor" / "koromo_catalog.py").read_text(
+        encoding="utf-8"
+    )
+    catalog = (PLUGIN_ROOT / "assets" / "game-catalog.html").read_text(encoding="utf-8")
+    skill = (PLUGIN_ROOT / "skills" / "coach-mahjong-soul" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
+    chinese_readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "DEFAULT_SYNC_INTERVAL_MINUTES = 24 * 60" in client
+    assert "MIN_REQUEST_INTERVAL_SECONDS = 1.0" in client
+    assert "MJTUTOR_KOROMO_TOKEN" in chinese_readme
+    assert "MJTutor 不运行云服务" in chinese_readme
+    assert "牌局目录首先用于浏览" in chinese_readme
+    assert "当前显示本地复盘" in catalog
+    assert "personal_key_required" in catalog
+    assert "不提供云端代理或共享密钥" in catalog
+    assert "primarily as a browser for locally saved reviews" in skill
+    assert "Never ask the user to paste a key into chat" in skill
 
 
 def test_skill_rechecks_async_turnstile_state_before_handoff() -> None:

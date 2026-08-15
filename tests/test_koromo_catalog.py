@@ -6,6 +6,8 @@ from pathlib import Path
 from urllib.error import HTTPError
 
 from mjtutor.koromo_catalog import (
+    DEFAULT_SYNC_INTERVAL_MINUTES,
+    MIN_REQUEST_INTERVAL_SECONDS,
     KoromoCatalogClient,
     KoromoGame,
     KoromoVerificationRequired,
@@ -42,9 +44,7 @@ def _raw_game(uuid: str = "260811-test") -> dict:
 
 
 def test_parses_four_player_hanchan_and_builds_paipu_url() -> None:
-    game = parse_koromo_game(
-        _raw_game(), koromo_account_id=KOROMO_ACCOUNT_ID
-    )
+    game = parse_koromo_game(_raw_game(), koromo_account_id=KOROMO_ACCOUNT_ID)
 
     assert game.mode_id == 9
     assert game.player_rank == 2
@@ -87,6 +87,49 @@ def test_client_uses_hanchan_modes_and_optional_access_token() -> None:
     assert captured["authorization"] == "Bearer site-key"
 
 
+def test_client_limits_requests_to_one_per_second() -> None:
+    now = 0.0
+    request_times = []
+    sleep_delays = []
+
+    class Response(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+    def clock() -> float:
+        return now
+
+    def sleeper(delay: float) -> None:
+        nonlocal now
+        sleep_delays.append(delay)
+        now += delay
+
+    def opener(_request, *, timeout):
+        request_times.append(clock())
+        return Response(json.dumps([_raw_game()]).encode())
+
+    client = KoromoCatalogClient(
+        mirrors=("https://data.example",),
+        opener=opener,
+        clock=clock,
+        sleeper=sleeper,
+    )
+    for _ in range(2):
+        client.fetch_games(
+            koromo_account_id=KOROMO_ACCOUNT_ID,
+            start_ms=1_700_000_000_000,
+            end_ms=1_800_000_000_000,
+        )
+
+    assert DEFAULT_SYNC_INTERVAL_MINUTES == 24 * 60
+    assert MIN_REQUEST_INTERVAL_SECONDS == 1.0
+    assert request_times == [0.0, 1.0]
+    assert sleep_delays == [1.0]
+
+
 def test_client_does_not_bypass_koromo_challenge() -> None:
     def opener(request, *, timeout):
         raise HTTPError(
@@ -100,27 +143,34 @@ def test_client_does_not_bypass_koromo_challenge() -> None:
     client = KoromoCatalogClient(mirrors=("https://data.example",), opener=opener)
 
     try:
-        client.fetch_games(
-            koromo_account_id=KOROMO_ACCOUNT_ID, start_ms=1, end_ms=2
-        )
+        client.fetch_games(koromo_account_id=KOROMO_ACCOUNT_ID, start_ms=1, end_ms=2)
     except KoromoVerificationRequired as error:
         assert "does not solve or bypass" not in str(error)
-        assert "browser challenge" in str(error)
+        assert "personal access key" in str(error)
+        assert "does not provide a hosted proxy" in str(error)
     else:
         raise AssertionError("Koromo challenge should stop automatic sync")
 
 
 class FakeKoromoClient:
     def __init__(
-        self, games: list[KoromoGame] | None = None, error: Exception | None = None
+        self,
+        games: list[KoromoGame] | None = None,
+        error: Exception | None = None,
+        *,
+        access_token_configured: bool = True,
     ):
         self.games = games or []
         self.error = error
+        self.access_token_configured = access_token_configured
         self.calls = 0
         self.last_kwargs = None
 
     def status(self) -> dict:
-        return {"source": "fake", "access_token_configured": False}
+        return {
+            "source": "fake",
+            "access_token_configured": self.access_token_configured,
+        }
 
     def fetch_games(self, **kwargs) -> list[KoromoGame]:
         self.calls += 1
@@ -137,16 +187,12 @@ def test_sync_caches_filters_and_prepares_selected_game(tmp_path: Path) -> None:
         majsoul_uid=MAJSOUL_UID,
         koromo_account_id=KOROMO_ACCOUNT_ID,
     )
-    parsed = parse_koromo_game(
-        _raw_game(), koromo_account_id=KOROMO_ACCOUNT_ID
-    )
+    parsed = parse_koromo_game(_raw_game(), koromo_account_id=KOROMO_ACCOUNT_ID)
     fake = FakeKoromoClient([parsed])
     service = CoachService(repository=repository, koromo_client=fake)
 
     synced = service.sync_koromo_games(force=True, max_pages=1)
-    listed = service.list_koromo_games(
-        majsoul_uid=MAJSOUL_UID, rank=2, reviewed=False
-    )
+    listed = service.list_koromo_games(majsoul_uid=MAJSOUL_UID, rank=2, reviewed=False)
     prepared = service.prepare_selected_game_review(parsed.uuid)
 
     assert synced["accounts"][0]["inserted"] == 1
@@ -166,6 +212,48 @@ def test_sync_caches_filters_and_prepares_selected_game(tmp_path: Path) -> None:
     repeated = service.sync_koromo_games(force=True, max_pages=1)
     assert repeated["accounts"][0]["inserted"] == 0
     assert repeated["accounts"][0]["updated"] == 1
+
+
+def test_automatic_sync_waits_at_least_24_hours(tmp_path: Path) -> None:
+    repository = ReviewRepository(tmp_path / "coach.sqlite3")
+    repository.bind_majsoul_account(
+        nickname="LocalPlayer",
+        majsoul_uid=MAJSOUL_UID,
+        koromo_account_id=KOROMO_ACCOUNT_ID,
+    )
+    fake = FakeKoromoClient()
+    service = CoachService(repository=repository, koromo_client=fake)
+
+    first = service.sync_koromo_games(max_pages=1)
+    automatic_retry = service.sync_koromo_games(max_pages=1)
+    manual_refresh = service.sync_koromo_games(force=True, max_pages=1)
+
+    assert first["accounts"][0]["skipped"] is False
+    assert automatic_retry["accounts"][0]["skipped"] is True
+    assert automatic_retry["accounts"][0]["skip_reason"] == "minimum_sync_interval"
+    assert manual_refresh["accounts"][0]["skipped"] is False
+    assert fake.calls == 2
+
+
+def test_sync_without_personal_key_stays_local_and_skips_network(
+    tmp_path: Path,
+) -> None:
+    repository = ReviewRepository(tmp_path / "coach.sqlite3")
+    repository.bind_majsoul_account(
+        nickname="LocalPlayer",
+        majsoul_uid=MAJSOUL_UID,
+        koromo_account_id=KOROMO_ACCOUNT_ID,
+    )
+    fake = FakeKoromoClient(access_token_configured=False)
+    service = CoachService(repository=repository, koromo_client=fake)
+
+    synced = service.sync_koromo_games(force=True)
+    status = service.koromo_sync_status()
+
+    assert synced["accounts"][0]["status"] == "personal_key_required"
+    assert synced["accounts"][0]["skip_reason"] == "personal_api_key_required"
+    assert status["accounts"][0]["status"] == "personal_key_required"
+    assert fake.calls == 0
 
 
 def test_sync_records_verification_required_and_serves_cache(tmp_path: Path) -> None:
@@ -195,9 +283,7 @@ def test_sync_marks_game_reviewed_when_review_was_imported_first(
         majsoul_uid=MAJSOUL_UID,
         koromo_account_id=KOROMO_ACCOUNT_ID,
     )
-    parsed = parse_koromo_game(
-        _raw_game(), koromo_account_id=KOROMO_ACCOUNT_ID
-    )
+    parsed = parse_koromo_game(_raw_game(), koromo_account_id=KOROMO_ACCOUNT_ID)
     metadata = LogMetadata(
         path=parsed.as_dict(koromo_account_id=KOROMO_ACCOUNT_ID)["paipu_url"],
         sha256="abc123",
@@ -245,9 +331,7 @@ def test_sync_marks_game_reviewed_when_review_was_imported_first(
 
 def test_saved_report_prefers_mortal_visual_viewer(tmp_path: Path) -> None:
     repository = ReviewRepository(tmp_path / "coach.sqlite3")
-    parsed = parse_koromo_game(
-        _raw_game(), koromo_account_id=KOROMO_ACCOUNT_ID
-    )
+    parsed = parse_koromo_game(_raw_game(), koromo_account_id=KOROMO_ACCOUNT_ID)
     metadata = LogMetadata(
         path=parsed.as_dict(koromo_account_id=KOROMO_ACCOUNT_ID)["paipu_url"],
         sha256="mortal-report",
@@ -341,9 +425,7 @@ def test_catalog_merges_local_reviews_and_uses_bound_nickname(tmp_path: Path) ->
     assert catalog["catalog_review_count"] == 3
     assert catalog["total"] == 2
     assert sorted(item["review_count"] for item in catalog["items"]) == [1, 2]
-    double_review = next(
-        item for item in catalog["items"] if item["review_count"] == 2
-    )
+    double_review = next(item for item in catalog["items"] if item["review_count"] == 2)
     assert set(double_review["model_tags"]) == {"3.0", "4.1b"}
     assert double_review["account_nickname"] == "LocalPlayer"
     assert double_review["majsoul_uid"] == MAJSOUL_UID

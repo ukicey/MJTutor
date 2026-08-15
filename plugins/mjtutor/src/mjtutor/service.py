@@ -167,9 +167,7 @@ class CoachService:
                     "The owned paipu URL does not contain a usable catalog account ID"
                 )
             if koromo_account_id is not None and koromo_account_id != decoded:
-                raise CoachError(
-                    "koromo_account_id does not match the owned paipu URL"
-                )
+                raise CoachError("koromo_account_id does not match the owned paipu URL")
             koromo_account_id = decoded
         return self.repository.bind_majsoul_account(
             nickname=nickname,
@@ -193,6 +191,29 @@ class CoachService:
             ]
             if not accounts:
                 raise CoachError(f"Mahjong Soul UID is not bound: {majsoul_uid}")
+        if not self.koromo_client.status().get("access_token_configured", False):
+            return {
+                "accounts": [
+                    {
+                        **item,
+                        "skipped": True,
+                        "skip_reason": (
+                            "personal_api_key_required"
+                            if item["status"] == "personal_key_required"
+                            else "owned_paipu_url_required"
+                        ),
+                    }
+                    for item in self.koromo_sync_status(majsoul_uid=majsoul_uid)[
+                        "accounts"
+                    ]
+                ],
+                "automatic_policy": (
+                    "The catalog browses local reviews without Koromo. Optional "
+                    "synchronization requires a personal API key and runs at most "
+                    "once every 24 hours."
+                ),
+                "external_analysis_started": False,
+            }
         lookback_days = max(1, min(int(lookback_days), 3650))
         max_pages = max(1, min(int(max_pages), 50))
         results = [
@@ -355,16 +376,24 @@ class CoachService:
         )
         result["sync"] = sync
         result["catalog_notice"] = (
-            "The catalog combines imported local reviews with cached Koromo metadata. "
-            "Koromo is third-party, delayed, and potentially incomplete; browsing "
-            "does not start Mortal analysis."
+            "The catalog is a browser for imported local reviews. Users with a "
+            "personal API key may additionally sync cached Koromo metadata. Koromo "
+            "is third-party, delayed, and potentially incomplete; browsing does not "
+            "start Mortal analysis."
         )
         return result
 
     def koromo_sync_status(self, *, majsoul_uid: int | None = None) -> dict[str, Any]:
+        provider = self.koromo_client.status()
+        result = self.repository.get_koromo_sync_status(account_id=majsoul_uid)
+        if not provider.get("access_token_configured", False):
+            for account in result["accounts"]:
+                if account["koromo_account_id"] is not None:
+                    account["status"] = "personal_key_required"
+                    account["last_error"] = None
         return {
-            **self.repository.get_koromo_sync_status(account_id=majsoul_uid),
-            "provider": self.koromo_client.status(),
+            **result,
+            "provider": provider,
             "minimum_sync_interval_minutes": DEFAULT_SYNC_INTERVAL_MINUTES,
         }
 

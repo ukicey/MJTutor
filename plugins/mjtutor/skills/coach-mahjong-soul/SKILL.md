@@ -70,9 +70,13 @@ gameplay analysis.
 ## Local Identity
 
 - Treat one MJTutor installation as one local human profile. Do not ask for, create, or route by a user key. The local human may bind more than one Mahjong Soul account.
-- Use Koromo as MJTutor's ranked-game catalog. Display each account as nickname plus
-  the profile UID shown in Mahjong Soul. Keep that `majsoul_uid` separate from
-  Koromo's internal `koromo_account_id`; nicknames are neither unique nor stable.
+- Treat the game catalog primarily as a browser for locally saved reviews. Koromo
+  synchronization is an optional extension for users who configure a personal API
+  key. Do not present a missing key as a setup failure when the user only wants to
+  browse local reviews.
+- For optional Koromo synchronization, display each account as nickname plus the
+  profile UID shown in Mahjong Soul. Keep that `majsoul_uid` separate from Koromo's
+  internal `koromo_account_id`; nicknames are neither unique nor stable.
 - Call `bind_majsoul_account` only after the user confirms the profile UID and
   nickname. Prefer an `owned_paipu_url` that the user confirms belongs to that
   account so MJTutor can derive the internal catalog ID. Never infer ownership from
@@ -80,7 +84,17 @@ gameplay analysis.
 - Use `open_game_catalog` for routine browsing, filtering, syncing, and selection. Use `list_koromo_games` only when the conversation needs a compact page of metadata.
 - Opening the catalog may call `sync_koromo_games` after a minimum interval. This is opportunistic incremental sync, not a resident background process. Manual refresh may use `force=true`.
 - A selected game only calls `prepare_selected_game_review`; it does not itself submit to Mortal or start analysis. When the user then asks to review it, continue with step 4; involve the user only if the review button remains unavailable after the bounded wait.
-- If sync reports `verification_required`, keep serving the local cache and explain that Koromo currently requires its browser challenge or a site-owner access key. Never solve, scrape around, or bypass that gate.
+- If Koromo status is `personal_key_required`, treat this as the normal local-only
+  state. Explain the optional personal-key setup only when the user asks to sync or
+  inspect setup. MJTutor must skip Koromo network requests in this state.
+- If the user requests Koromo synchronization and it reports
+  `verification_required`, keep serving local reviews and explain that the configured
+  credential was not accepted. MJTutor has no hosted proxy and never ships, shares, or
+  forwards a developer key. Do not suggest that opening Koromo in a browser authorizes
+  the local MCP process. Never solve, scrape around, or bypass the gate.
+- Never ask the user to paste a key into chat.
+- Treat the Koromo owner's limits as hard requirements: automatic sync runs at most
+  once every 24 hours, and data requests are spaced to no more than one per second.
 - A Mahjong Soul paipu viewer suffix contains Koromo's internal account ID, not the
   profile UID. Link it to an account only after that mapping has been confirmed. A
   review without account provenance still belongs to the local profile.

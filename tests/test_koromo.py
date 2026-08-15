@@ -22,9 +22,7 @@ def test_extracts_player_from_paipu_viewer_suffix() -> None:
 
     assert extract_koromo_account_id(url) == 1_355_604
     assert (
-        extract_koromo_account_id(
-            "https://game.maj-soul.com/1/?paipu=260618-example"
-        )
+        extract_koromo_account_id("https://game.maj-soul.com/1/?paipu=260618-example")
         is None
     )
 
