@@ -348,6 +348,27 @@ def propose_profile_item(
 
 
 @mcp.tool()
+def revise_profile_hypothesis(
+    item_id: int,
+    confidence: float,
+    statement: str | None = None,
+    scope: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Refine an existing tentative hypothesis as evidence changes.
+
+    Use this only for a tentative coach hypothesis. It may narrow or correct the
+    statement, scope, and confidence, but it never confirms a trait on the user's
+    behalf. Attach the new supporting or contradicting decision separately.
+    """
+    return service.revise_profile_hypothesis(
+        item_id=item_id,
+        confidence=confidence,
+        statement=statement,
+        scope=scope,
+    )
+
+
+@mcp.tool()
 def record_profile_memory(
     kind: str,
     category: str,
@@ -427,6 +448,16 @@ def get_local_profile(
     return service.local_profile(
         include_rejected=include_rejected,
     )
+
+
+@mcp.tool()
+def mark_profile_item_surfaced(item_id: int) -> dict[str, Any]:
+    """Record that one stored profile insight was actually mentioned to the user.
+
+    Call immediately after surfacing the item in conversation. This lets later coaching
+    avoid repeating an unchanged style or weakness observation.
+    """
+    return service.mark_profile_item_surfaced(item_id)
 
 
 def _catalog_tool_result(result: dict[str, Any]) -> types.CallToolResult:

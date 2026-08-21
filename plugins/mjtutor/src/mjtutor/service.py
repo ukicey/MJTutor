@@ -592,6 +592,25 @@ class CoachService:
             source="user_confirmed",
         )
 
+    def revise_profile_hypothesis(
+        self,
+        *,
+        item_id: int,
+        confidence: float,
+        statement: str | None = None,
+        scope: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        confidence = _validate_confidence(confidence)
+        normalized_statement = _optional_text(statement)
+        if statement is not None and normalized_statement is None:
+            raise CoachError("statement must not be empty when provided")
+        return self.repository.revise_profile_item(
+            item_id=item_id,
+            statement=normalized_statement,
+            scope=scope,
+            confidence=confidence,
+        )
+
     def add_profile_evidence(
         self,
         *,
@@ -615,6 +634,9 @@ class CoachService:
             stance=stance,
             note=note,
         )
+
+    def mark_profile_item_surfaced(self, item_id: int) -> dict[str, Any]:
+        return self.repository.mark_profile_item_surfaced(item_id)
 
     def resolve_profile_item(
         self,

@@ -11,7 +11,8 @@ Use this sequence:
 1. Identify the Mortal model once when it helps interpret or compare the review.
 2. Select up to three decisions with the highest teaching value. Large Q gap alone is not enough; prefer different categories when possible.
 3. For each decision, show the actual choice, Mortal's top choice, closeness, relevant state, and one transferable lesson.
-4. End with one tentative pattern, one strength, and one drill for the next games.
+4. End with one drill for the next games. Mention a tentative pattern or strength only when
+   it meets the profile-surfacing rules below; do not make them fixed closing sections.
 
 Do not list every disagreement. Offer deeper review by round after the initial synthesis.
 
@@ -41,6 +42,23 @@ Profile memory has three levels:
 - Confirmed profile items require explicit user confirmation or correction. Goals and teaching preferences may be recorded directly when the user states them explicitly.
 
 Mortal disagreement alone is not evidence of a mistake. Distinguish an intentional tradeoff, a knowledge gap, a repeated habit, and context-specific placement play before asking the user to confirm a profile item.
+
+For each full-game review, silently test no more than two candidate hypotheses:
+
+1. Start from a teaching-relevant current decision, not from the player's overall match rate.
+2. Search prior observations for the same strategic category and comparable context.
+3. Inspect enough full decisions to verify at least two distinct `game_key` values and seek a
+   counterexample. Multiple Mortal reports for one paipu are one game.
+4. Phrase the narrowest claim supported by the evidence. Separate a style tradeoff from a
+   correctable leak, and lower confidence when context or model choice may explain it.
+5. Create or revise a tentative item and attach evidence without waiting for the user to ask
+   about their profile.
+
+This exploration is proactive; its narration is selective. Surface at most one item per
+full-game review and only for a new cross-game hypothesis, a material update, a meaningful
+counterexample, or immediate teaching relevance. Skip unchanged items already surfaced and
+skip routine profile commentary in isolated-decision answers. Mark a stored item as surfaced
+only after it was actually mentioned.
 
 The user must be able to confirm, correct, reject, or forget a profile item. Do not recreate a rejected item without materially new evidence, and never recreate a forgotten item from conversational memory alone.
 

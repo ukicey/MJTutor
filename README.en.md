@@ -133,6 +133,13 @@ Profile information is separated into three categories:
 3. **Confirmed profile:** styles, goals, weaknesses, strengths, and teaching
    preferences you explicitly confirm or correct.
 
+During a full-game review, the coach selectively compares current decisions with
+earlier games, tests possible style or weakness patterns, and looks for
+counterexamples. It mentions a profile insight only when a new cross-game pattern
+emerges, an earlier interpretation changes materially, or the insight directly
+helps the current explanation, rather than repeating profile conclusions after
+every answer.
+
 The database is separate from the plugin installation, so updates and
 reinstallation do not overwrite it.
 

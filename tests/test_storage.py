@@ -56,7 +56,9 @@ def test_review_feedback_and_observations_are_local_without_account(
     assert repository.list_reviews()[0]["id"] == review_id
     assert repository.get_review(review_id).model_tag == "mortal-test"
     assert repository.observation_summary()["decision_count"] == 2
-    assert repository.list_observations(disagreements_only=False)["total"] == 2
+    observations = repository.list_observations(disagreements_only=False)
+    assert observations["total"] == 2
+    assert observations["observations"][0]["game_key"].startswith("source:")
     assert note["category"] == "tile_efficiency"
     profile = repository.coaching_profile()
     assert profile["local_profile"]["id"] == 1
@@ -215,6 +217,57 @@ def test_profile_items_use_single_local_owner(tmp_path: Path) -> None:
         "support",
         "contradict",
     }
+    duplicate_review_id = f"{review_id}-second-model"
+    repository.save_review(
+        review_id=duplicate_review_id,
+        metadata=metadata,
+        player_id=0,
+        review=review,
+    )
+    repository.add_profile_evidence(
+        item_id=tentative["id"],
+        review_id=duplicate_review_id,
+        decision_id="k0.0:d0",
+        stance="support",
+        note="The same paipu was reviewed by another model.",
+    )
+    compact_item = next(
+        item
+        for item in repository.list_profile_items()
+        if item["id"] == tentative["id"]
+    )
+    assert compact_item["support_count"] == 2
+    assert compact_item["support_game_count"] == 1
+    assert compact_item["contradict_game_count"] == 1
+    duplicate_game_keys = {
+        item["game_key"]
+        for item in repository.list_observations(disagreements_only=False)[
+            "observations"
+        ]
+    }
+    assert len(duplicate_game_keys) == 1
+    observation_summary = repository.observation_summary()
+    assert observation_summary["reviewed_games"] == 1
+    assert observation_summary["review_reports"] == 2
+
+    revised = repository.revise_profile_item(
+        item_id=tentative["id"],
+        statement="May push too often while one-shanten against an early riichi.",
+        scope={"shanten": 1, "opponent_riichi": True, "riichi_turn_lte": 8},
+        confidence=0.55,
+    )
+    assert revised["confidence"] == 0.55
+    assert revised["scope"]["riichi_turn_lte"] == 8
+    surfaced = repository.mark_profile_item_surfaced(tentative["id"])
+    assert surfaced["surfaced_count"] == 1
+    assert surfaced["last_surfaced_at"] is not None
+    compact_item = next(
+        item
+        for item in repository.list_profile_items()
+        if item["id"] == tentative["id"]
+    )
+    assert compact_item["unseen_evidence_count"] == 0
+
     corrected = repository.resolve_profile_item(
         item_id=tentative["id"],
         action="correct",
@@ -223,9 +276,17 @@ def test_profile_items_use_single_local_owner(tmp_path: Path) -> None:
     )
     assert corrected["status"] == "confirmed"
     assert corrected["source"] == "user_corrected"
+    with pytest.raises(CoachError, match="Only tentative"):
+        repository.revise_profile_item(
+            item_id=tentative["id"],
+            statement=None,
+            scope=None,
+            confidence=0.8,
+        )
 
     profile = repository.coaching_profile()
-    assert profile["confirmed_profile"][0]["support_count"] == 1
+    assert profile["confirmed_profile"][0]["support_count"] == 2
+    assert profile["confirmed_profile"][0]["support_game_count"] == 1
     assert profile["confirmed_profile"][0]["contradict_count"] == 1
 
     rejected = repository.create_profile_item(
@@ -457,12 +518,54 @@ def test_schema_v5_adds_separate_koromo_account_id(tmp_path: Path) -> None:
     assert identity["majsoul_uid"] == 12_345_678
     assert identity["koromo_account_id"] is None
     with repository._connect() as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 6
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 7
         indexes = {
             row["name"]
             for row in connection.execute("PRAGMA index_list(majsoul_accounts)")
         }
     assert "idx_majsoul_accounts_koromo" in indexes
+
+
+def test_schema_v6_adds_profile_surface_tracking(tmp_path: Path) -> None:
+    database_path = tmp_path / "schema-v6.sqlite3"
+    with sqlite3.connect(database_path) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE profile_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                kind TEXT NOT NULL,
+                category TEXT NOT NULL,
+                statement TEXT NOT NULL,
+                scope_json TEXT NOT NULL,
+                status TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                source TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            PRAGMA user_version = 6;
+            """
+        )
+        timestamp = "2026-01-01T00:00:00+00:00"
+        connection.execute(
+            """
+            INSERT INTO profile_items (
+                kind, category, statement, scope_json, status, confidence,
+                source, created_at, updated_at
+            ) VALUES ('pattern', 'calling', 'May call too often.', '{}',
+                      'tentative', 0.4, 'coach_hypothesis', ?, ?)
+            """,
+            (timestamp, timestamp),
+        )
+
+    repository = ReviewRepository(database_path)
+    item = repository.list_profile_items()[0]
+
+    assert item["statement"] == "May call too often."
+    assert item["last_surfaced_at"] is None
+    assert item["surfaced_count"] == 0
+    with repository._connect() as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 7
 
 
 def test_multiple_legacy_players_are_not_silently_merged(tmp_path: Path) -> None:

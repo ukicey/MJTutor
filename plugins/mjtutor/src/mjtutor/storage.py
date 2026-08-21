@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from contextlib import closing
@@ -12,7 +13,7 @@ from .koromo import extract_koromo_account_id, extract_paipu_uuid
 from .logs import LogMetadata
 from .models import ReviewDocument
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 LOCAL_PROFILE_ID = 1
 
 SCHEMA = """
@@ -133,7 +134,9 @@ CREATE TABLE IF NOT EXISTS profile_items (
     confidence REAL NOT NULL,
     source TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    last_surfaced_at TEXT,
+    surfaced_count INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS profile_evidence (
@@ -237,6 +240,16 @@ class ReviewRepository:
         ):
             connection.execute(
                 "ALTER TABLE majsoul_accounts ADD COLUMN koromo_account_id INTEGER"
+            )
+        profile_columns = cls._table_columns(connection, "profile_items")
+        if "last_surfaced_at" not in profile_columns:
+            connection.execute(
+                "ALTER TABLE profile_items ADD COLUMN last_surfaced_at TEXT"
+            )
+        if "surfaced_count" not in profile_columns:
+            connection.execute(
+                "ALTER TABLE profile_items "
+                "ADD COLUMN surfaced_count INTEGER NOT NULL DEFAULT 0"
             )
         connection.execute(
             """
@@ -1404,28 +1417,35 @@ class ReviewRepository:
             totals = connection.execute(
                 """
                 SELECT COUNT(*) AS decision_count,
-                       COUNT(DISTINCT review_id) AS reviewed_games,
-                       COALESCE(SUM(matches_mortal), 0) AS mortal_matches
-                FROM decision_observations
+                       COUNT(DISTINCT o.review_id) AS review_reports,
+                       COUNT(DISTINCT r.source_path) AS reviewed_games,
+                       COALESCE(SUM(o.matches_mortal), 0) AS mortal_matches
+                FROM decision_observations AS o
+                JOIN reviews AS r ON r.id = o.review_id
                 """
             ).fetchone()
             models = connection.execute(
                 """
-                SELECT model_tag, COUNT(DISTINCT review_id) AS reviewed_games,
+                SELECT o.model_tag,
+                       COUNT(DISTINCT r.source_path) AS reviewed_games,
+                       COUNT(DISTINCT o.review_id) AS review_reports,
                        COUNT(*) AS decision_count,
-                       SUM(matches_mortal) AS mortal_matches
-                FROM decision_observations
-                GROUP BY model_tag
-                ORDER BY reviewed_games DESC, model_tag
+                       SUM(o.matches_mortal) AS mortal_matches
+                FROM decision_observations AS o
+                JOIN reviews AS r ON r.id = o.review_id
+                GROUP BY o.model_tag
+                ORDER BY reviewed_games DESC, o.model_tag
                 """
             ).fetchall()
             patterns = connection.execute(
                 """
-                SELECT actual_type, expected_type, COUNT(*) AS count
-                FROM decision_observations
-                WHERE matches_mortal = 0
-                GROUP BY actual_type, expected_type
-                ORDER BY count DESC, actual_type, expected_type
+                SELECT o.actual_type, o.expected_type,
+                       COUNT(DISTINCT r.source_path || ':' || o.decision_id) AS count
+                FROM decision_observations AS o
+                JOIN reviews AS r ON r.id = o.review_id
+                WHERE o.matches_mortal = 0
+                GROUP BY o.actual_type, o.expected_type
+                ORDER BY count DESC, o.actual_type, o.expected_type
                 LIMIT 12
                 """
             ).fetchall()
@@ -1433,6 +1453,7 @@ class ReviewRepository:
         mortal_matches = int(totals["mortal_matches"])
         return {
             "reviewed_games": int(totals["reviewed_games"]),
+            "review_reports": int(totals["review_reports"]),
             "decision_count": decision_count,
             "mortal_matches": mortal_matches,
             "match_rate": mortal_matches / decision_count if decision_count else None,
@@ -1469,13 +1490,15 @@ class ReviewRepository:
             ).fetchone()
             rows = connection.execute(
                 f"""
-                SELECT review_id, decision_id, model_tag, round_label, honba,
-                       turn, tiles_left, shanten, furiten, actual_type,
-                       expected_type, actual_action_json, expected_action_json,
-                       matches_mortal, actual_rank, q_gap
-                FROM decision_observations
+                SELECT o.review_id, o.decision_id, o.model_tag, o.round_label,
+                       o.honba, o.turn, o.tiles_left, o.shanten, o.furiten,
+                       o.actual_type, o.expected_type, o.actual_action_json,
+                       o.expected_action_json, o.matches_mortal, o.actual_rank,
+                       o.q_gap, r.source_path
+                FROM decision_observations AS o
+                JOIN reviews AS r ON r.id = o.review_id
                 WHERE {where}
-                ORDER BY created_at DESC, review_id, decision_id
+                ORDER BY o.created_at DESC, o.review_id, o.decision_id
                 LIMIT ? OFFSET ?
                 """,
                 (*parameters, page_limit, page_offset),
@@ -1483,6 +1506,7 @@ class ReviewRepository:
         observations = []
         for row in rows:
             item = dict(row)
+            item["game_key"] = _source_game_key(item.pop("source_path"))
             item["actual"] = json.loads(item.pop("actual_action_json"))
             item["expected"] = json.loads(item.pop("expected_action_json"))
             item["matches_mortal"] = bool(item["matches_mortal"])
@@ -1552,16 +1576,24 @@ class ReviewRepository:
                 raise ProfileItemNotFoundError(f"Profile item not found: {item_id}")
             evidence = connection.execute(
                 """
-                SELECT id, review_id, decision_id, stance, note, model_tag, created_at
-                FROM profile_evidence
-                WHERE profile_item_id = ?
-                ORDER BY created_at DESC
+                SELECT e.id, e.review_id, e.decision_id, e.stance, e.note,
+                       e.model_tag, e.created_at, r.source_path
+                FROM profile_evidence AS e
+                JOIN reviews AS r ON r.id = e.review_id
+                WHERE e.profile_item_id = ?
+                ORDER BY e.created_at DESC
                 LIMIT ?
                 """,
                 (item_id, max(1, min(evidence_limit, 100))),
             ).fetchall()
         result = _profile_item_dict(row)
-        result["evidence"] = [dict(item) for item in evidence]
+        result["evidence"] = []
+        for evidence_row in evidence:
+            evidence_item = dict(evidence_row)
+            evidence_item["game_key"] = _source_game_key(
+                evidence_item.pop("source_path")
+            )
+            result["evidence"].append(evidence_item)
         return result
 
     def list_profile_items(
@@ -1577,9 +1609,18 @@ class ReviewRepository:
                        SUM(CASE WHEN e.stance = 'support' THEN 1 ELSE 0 END)
                            AS support_count,
                        SUM(CASE WHEN e.stance = 'contradict' THEN 1 ELSE 0 END)
-                           AS contradict_count
+                           AS contradict_count,
+                       COUNT(DISTINCT CASE WHEN e.stance = 'support'
+                           THEN r.source_path END) AS support_game_count,
+                       COUNT(DISTINCT CASE WHEN e.stance = 'contradict'
+                           THEN r.source_path END) AS contradict_game_count,
+                       SUM(CASE WHEN e.id IS NOT NULL AND (
+                           p.last_surfaced_at IS NULL
+                           OR e.created_at > p.last_surfaced_at
+                       ) THEN 1 ELSE 0 END) AS unseen_evidence_count
                 FROM profile_items AS p
                 LEFT JOIN profile_evidence AS e ON e.profile_item_id = p.id
+                LEFT JOIN reviews AS r ON r.id = e.review_id
                 {status_clause}
                 GROUP BY p.id
                 ORDER BY
@@ -1592,6 +1633,55 @@ class ReviewRepository:
                 """
             ).fetchall()
         return [_profile_item_dict(row) for row in rows]
+
+    def revise_profile_item(
+        self,
+        *,
+        item_id: int,
+        statement: str | None,
+        scope: dict[str, Any] | None,
+        confidence: float,
+    ) -> dict[str, Any]:
+        current = self.get_profile_item(item_id, evidence_limit=1)
+        if current["status"] != "tentative":
+            raise CoachError("Only tentative profile items can be revised by the coach")
+        now = _now()
+        with closing(self._connect()) as connection:
+            connection.execute(
+                """
+                UPDATE profile_items
+                SET statement = ?, scope_json = ?, confidence = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    statement if statement is not None else current["statement"],
+                    json.dumps(
+                        scope if scope is not None else current["scope"],
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    ),
+                    confidence,
+                    now,
+                    item_id,
+                ),
+            )
+            connection.commit()
+        return self.get_profile_item(item_id)
+
+    def mark_profile_item_surfaced(self, item_id: int) -> dict[str, Any]:
+        self.get_profile_item(item_id, evidence_limit=1)
+        surfaced_at = _now()
+        with closing(self._connect()) as connection:
+            connection.execute(
+                """
+                UPDATE profile_items
+                SET last_surfaced_at = ?, surfaced_count = surfaced_count + 1
+                WHERE id = ?
+                """,
+                (surfaced_at, item_id),
+            )
+            connection.commit()
+        return self.get_profile_item(item_id)
 
     def add_profile_evidence(
         self,
@@ -1735,7 +1825,23 @@ def _profile_item_dict(row: sqlite3.Row) -> dict[str, Any]:
         result["support_count"] = int(result["support_count"] or 0)
     if "contradict_count" in result:
         result["contradict_count"] = int(result["contradict_count"] or 0)
+    if "support_game_count" in result:
+        result["support_game_count"] = int(result["support_game_count"] or 0)
+    if "contradict_game_count" in result:
+        result["contradict_game_count"] = int(result["contradict_game_count"] or 0)
+    if "unseen_evidence_count" in result:
+        result["unseen_evidence_count"] = int(result["unseen_evidence_count"] or 0)
+    if "surfaced_count" in result:
+        result["surfaced_count"] = int(result["surfaced_count"] or 0)
     return result
+
+
+def _source_game_key(source_path: str) -> str:
+    paipu_uuid = extract_paipu_uuid(source_path)
+    if paipu_uuid:
+        return f"paipu:{paipu_uuid}"
+    digest = hashlib.sha256(source_path.encode("utf-8")).hexdigest()[:16]
+    return f"source:{digest}"
 
 
 def _now() -> str:
