@@ -49,7 +49,9 @@ def test_parses_four_player_hanchan_and_builds_paipu_url() -> None:
     assert game.mode_id == 9
     assert game.player_rank == 2
     assert game.player_score == 31200
-    assert game.as_dict(koromo_account_id=KOROMO_ACCOUNT_ID)["mode_label"] == "金南"
+    serialized = game.as_dict(koromo_account_id=KOROMO_ACCOUNT_ID)
+    assert serialized["mode_label"] == "金南"
+    assert "players" not in serialized
     assert make_paipu_url(game.uuid, KOROMO_ACCOUNT_ID).startswith(
         "https://game.maj-soul.com/1/?paipu=260811-test_a"
     )
@@ -200,6 +202,13 @@ def test_sync_caches_filters_and_prepares_selected_game(tmp_path: Path) -> None:
     assert fake.last_kwargs["koromo_account_id"] != MAJSOUL_UID
     assert listed["total"] == 1
     assert listed["items"][0]["account_nickname"] == "LocalPlayer"
+    assert "players" not in listed["items"][0]
+    with repository._connect() as connection:
+        players_json = connection.execute(
+            "SELECT players_json FROM koromo_games WHERE uuid = ?",
+            (parsed.uuid,),
+        ).fetchone()[0]
+    assert players_json == "[]"
     assert prepared["status"] == "model_preference_required"
     assert prepared["external_analysis_started"] is False
     assert prepared["mortal_web"]["status"] == "model_preference_required"
@@ -430,6 +439,56 @@ def test_catalog_merges_local_reviews_and_uses_bound_nickname(tmp_path: Path) ->
     assert double_review["account_nickname"] == "LocalPlayer"
     assert double_review["majsoul_uid"] == MAJSOUL_UID
     assert {item["player_name"] for item in reviews} == {"LocalPlayer"}
+
+
+def test_local_review_catalog_includes_reconstructed_result(tmp_path: Path) -> None:
+    repository = ReviewRepository(tmp_path / "coach.sqlite3")
+    paipu_url = make_paipu_url("260813-result", KOROMO_ACCOUNT_ID)
+    metadata = LogMetadata(
+        path=paipu_url,
+        sha256="result-report",
+        format="mortal-web-report-json",
+        player_names=["LocalPlayer", "B", "C", "D"],
+        rule_display="Mortal Web four-player hanchan",
+        round_count=8,
+        is_hanchan=True,
+        is_four_player=True,
+        reference="https://mjai.ekyu.moe/report/result.json",
+    )
+    review = ReviewDocument.from_json(
+        {
+            "player_id": 0,
+            "mjai_log": [
+                {"type": "start_game"},
+                {"type": "start_kyoku", "scores": [13100, 31000, 1800, 54100]},
+                {"type": "reach_accepted", "actor": 3},
+                {"type": "hora", "deltas": [-3000, -6000, -3000, 13000]},
+                {"type": "end_kyoku"},
+                {"type": "end_game"},
+            ],
+            "review": {
+                "model_tag": "4.1b",
+                "kyokus": [],
+                "total_reviewed": 0,
+                "total_matches": 0,
+            },
+        },
+        player_id=0,
+    )
+
+    repository.save_review(
+        review_id="review-with-result",
+        metadata=metadata,
+        player_id=0,
+        review=review,
+        report_json_url=metadata.reference,
+    )
+    game = CoachService(repository=repository).list_koromo_games()["items"][0]
+
+    assert game["source"] == "local_review"
+    assert game["player_rank"] == 3
+    assert game["player_score"] == 10100
+    assert "players" not in game
 
 
 def test_web_review_requires_preference_then_uses_default(tmp_path: Path) -> None:

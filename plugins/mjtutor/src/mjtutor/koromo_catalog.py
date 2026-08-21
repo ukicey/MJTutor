@@ -43,7 +43,6 @@ class KoromoGame:
     mode_id: int
     start_time: int
     end_time: int
-    players: tuple[dict[str, Any], ...]
     player_rank: int
     player_score: int
 
@@ -55,7 +54,6 @@ class KoromoGame:
             "mode_label": MODE_LABELS.get(self.mode_id, f"Mode {self.mode_id}"),
             "start_time": self.start_time,
             "end_time": self.end_time,
-            "players": [dict(player) for player in self.players],
             "player_rank": self.player_rank,
             "player_score": self.player_score,
             "paipu_url": make_paipu_url(self.uuid, koromo_account_id),
@@ -222,7 +220,6 @@ def parse_koromo_game(raw: Any, *, koromo_account_id: int) -> KoromoGame:
         mode_id=mode_id,
         start_time=int(raw.get("startTime", raw.get("start_time", 0))),
         end_time=int(raw.get("endTime", raw.get("end_time", 0))),
-        players=players,
         player_rank=rank_order.index(owner_index) + 1,
         player_score=int(players[owner_index]["score"]),
     )

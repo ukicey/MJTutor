@@ -1,6 +1,44 @@
 from typing import Any
 
+from mjtutor.context import reconstruct_final_result
 from mjtutor.models import ReviewDocument
+
+
+def test_reconstructs_final_results_from_complete_event_logs() -> None:
+    reach_and_win = [
+        {"type": "start_kyoku", "scores": [13100, 31000, 1800, 54100]},
+        {"type": "reach_accepted", "actor": 3},
+        {"type": "hora", "deltas": [-3000, -6000, -3000, 13000]},
+        {"type": "end_kyoku"},
+        {"type": "end_game"},
+    ]
+    exhaustive_draw = [
+        {"type": "start_kyoku", "scores": [25000, 25000, 25000, 25000]},
+        {"type": "ryukyoku", "deltas": [1500, -1500, 1500, -1500]},
+        {"type": "end_kyoku"},
+        {"type": "end_game"},
+    ]
+    double_ron = [
+        {"type": "start_kyoku", "scores": [25000, 25000, 25000, 25000]},
+        {"type": "hora", "deltas": [8000, -8000, 0, 0]},
+        {"type": "hora", "deltas": [0, -3900, 3900, 0]},
+        {"type": "end_kyoku"},
+        {"type": "end_game"},
+    ]
+
+    assert reconstruct_final_result(reach_and_win, player_id=0) == {
+        "player_rank": 3,
+        "player_score": 10100,
+    }
+    assert reconstruct_final_result(exhaustive_draw, player_id=2) == {
+        "player_rank": 2,
+        "player_score": 26500,
+    }
+    assert reconstruct_final_result(double_ron, player_id=2) == {
+        "player_rank": 2,
+        "player_score": 28900,
+    }
+    assert reconstruct_final_result(double_ron[:-1], player_id=2) is None
 
 
 def test_discard_context_excludes_opponent_hands_and_future_events() -> None:

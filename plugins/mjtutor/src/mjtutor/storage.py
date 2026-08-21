@@ -8,12 +8,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from .context import reconstruct_final_result
 from .errors import CoachError, ProfileItemNotFoundError, ReviewNotFoundError
 from .koromo import extract_koromo_account_id, extract_paipu_uuid
 from .logs import LogMetadata
 from .models import ReviewDocument
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 LOCAL_PROFILE_ID = 1
 
 SCHEMA = """
@@ -89,6 +90,8 @@ CREATE TABLE IF NOT EXISTS reviews (
     created_at TEXT NOT NULL,
     report_json TEXT NOT NULL,
     report_json_url TEXT,
+    player_rank INTEGER,
+    player_score INTEGER,
     account_id INTEGER REFERENCES majsoul_accounts(account_id)
 );
 
@@ -192,6 +195,7 @@ class ReviewRepository:
 
     def _initialize(self) -> None:
         migrated = False
+        result_backfill_required = False
         with closing(self._connect()) as connection:
             connection.execute("PRAGMA foreign_keys = OFF")
             connection.execute("BEGIN IMMEDIATE")
@@ -205,7 +209,7 @@ class ReviewRepository:
                     migrated = True
                 else:
                     self._execute_schema(connection)
-                self._ensure_additive_columns(connection)
+                result_backfill_required = self._ensure_additive_columns(connection)
                 now = _now()
                 connection.execute(
                     """
@@ -224,6 +228,8 @@ class ReviewRepository:
                 connection.execute("PRAGMA foreign_keys = ON")
         if migrated:
             self._reindex_all_reviews()
+        if migrated or result_backfill_required:
+            self._backfill_review_results()
 
     @staticmethod
     def _execute_schema(connection: sqlite3.Connection) -> None:
@@ -232,9 +238,17 @@ class ReviewRepository:
                 connection.execute(statement)
 
     @classmethod
-    def _ensure_additive_columns(cls, connection: sqlite3.Connection) -> None:
-        if "report_json_url" not in cls._table_columns(connection, "reviews"):
+    def _ensure_additive_columns(cls, connection: sqlite3.Connection) -> bool:
+        review_columns = cls._table_columns(connection, "reviews")
+        if "report_json_url" not in review_columns:
             connection.execute("ALTER TABLE reviews ADD COLUMN report_json_url TEXT")
+        result_backfill_required = False
+        if "player_rank" not in review_columns:
+            connection.execute("ALTER TABLE reviews ADD COLUMN player_rank INTEGER")
+            result_backfill_required = True
+        if "player_score" not in review_columns:
+            connection.execute("ALTER TABLE reviews ADD COLUMN player_score INTEGER")
+            result_backfill_required = True
         if "koromo_account_id" not in cls._table_columns(
             connection, "majsoul_accounts"
         ):
@@ -258,6 +272,10 @@ class ReviewRepository:
             WHERE koromo_account_id IS NOT NULL
             """
         )
+        connection.execute(
+            "UPDATE koromo_games SET players_json = '[]' WHERE players_json != '[]'"
+        )
+        return result_backfill_required
 
     @staticmethod
     def _table_exists(connection: sqlite3.Connection, table: str) -> bool:
@@ -622,6 +640,42 @@ class ReviewRepository:
                 continue
             self._index_review_observations(review_id=review_id, review=review)
 
+    def _backfill_review_results(self) -> None:
+        with closing(self._connect()) as connection:
+            rows = connection.execute(
+                "SELECT id, report_json, player_id FROM reviews"
+            ).fetchall()
+            results = []
+            for row in rows:
+                try:
+                    payload = json.loads(str(row["report_json"]))
+                except (TypeError, ValueError):
+                    continue
+                if not isinstance(payload, dict):
+                    continue
+                result = reconstruct_final_result(
+                    payload.get("mjai_log"),
+                    player_id=int(row["player_id"]),
+                )
+                if result is None:
+                    continue
+                results.append(
+                    (
+                        int(result["player_rank"]),
+                        int(result["player_score"]),
+                        str(row["id"]),
+                    )
+                )
+            connection.executemany(
+                """
+                UPDATE reviews
+                SET player_rank = ?, player_score = ?
+                WHERE id = ?
+                """,
+                results,
+            )
+            connection.commit()
+
     def bind_majsoul_account(
         self,
         *,
@@ -868,9 +922,7 @@ class ReviewRepository:
                         str(game["mode_label"]),
                         int(game["start_time"]),
                         int(game["end_time"]),
-                        json.dumps(
-                            game["players"], ensure_ascii=False, separators=(",", ":")
-                        ),
+                        "[]",
                         int(game["player_rank"]),
                         int(game["player_score"]),
                         str(game["paipu_url"]),
@@ -1050,7 +1102,8 @@ class ReviewRepository:
             review_rows = connection.execute(
                 """
                 SELECT r.id, r.source_path, r.model_tag, r.created_at, r.account_id,
-                       r.rule_display, a.nickname AS account_nickname,
+                       r.rule_display, r.player_rank, r.player_score,
+                       a.nickname AS account_nickname,
                        a.koromo_account_id
                 FROM reviews AS r
                 LEFT JOIN majsoul_accounts AS a ON a.account_id = r.account_id
@@ -1060,7 +1113,7 @@ class ReviewRepository:
         by_uuid: dict[str, dict[str, Any]] = {}
         for row in game_rows:
             item = dict(row)
-            item["players"] = json.loads(item.pop("players_json"))
+            item.pop("players_json", None)
             item.pop("account_id", None)
             item.pop("review_id", None)
             item.update(
@@ -1101,9 +1154,8 @@ class ReviewRepository:
                     "start_time": _timestamp(created_at),
                     "end_time": _timestamp(created_at),
                     "time_accuracy": "imported",
-                    "players": [],
-                    "player_rank": None,
-                    "player_score": None,
+                    "player_rank": row["player_rank"],
+                    "player_score": row["player_score"],
                     "paipu_url": paipu_url,
                     "first_seen_at": created_at,
                     "last_seen_at": created_at,
@@ -1118,6 +1170,10 @@ class ReviewRepository:
                 by_uuid[uuid] = item
             elif item["source"] == "koromo":
                 item["source"] = "both"
+            if item["player_rank"] is None and row["player_rank"] is not None:
+                item["player_rank"] = int(row["player_rank"])
+            if item["player_score"] is None and row["player_score"] is not None:
+                item["player_score"] = int(row["player_score"])
             review_id = str(row["id"])
             model_tag = str(row["model_tag"])
             item["review_ids"].append(review_id)
@@ -1160,6 +1216,12 @@ class ReviewRepository:
         now = _now()
         payload = json.dumps(review.raw, ensure_ascii=False, separators=(",", ":"))
         account_id = self._registered_account_for_source(metadata.path)
+        result = reconstruct_final_result(
+            review.raw.get("mjai_log"),
+            player_id=player_id,
+        )
+        player_rank = result["player_rank"] if result is not None else None
+        player_score = result["player_score"] if result is not None else None
         with closing(self._connect()) as connection:
             if account_id is not None:
                 account = connection.execute(
@@ -1173,8 +1235,8 @@ class ReviewRepository:
                 INSERT INTO reviews (
                     id, source_path, source_sha256, player_id, player_name,
                     rule_display, model_tag, created_at, report_json,
-                    report_json_url, account_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    report_json_url, player_rank, player_score, account_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     source_path = excluded.source_path,
                     source_sha256 = excluded.source_sha256,
@@ -1187,6 +1249,8 @@ class ReviewRepository:
                     report_json_url = COALESCE(
                         excluded.report_json_url, reviews.report_json_url
                     ),
+                    player_rank = excluded.player_rank,
+                    player_score = excluded.player_score,
                     account_id = COALESCE(excluded.account_id, reviews.account_id)
                 """,
                 (
@@ -1200,6 +1264,8 @@ class ReviewRepository:
                     now,
                     payload,
                     report_json_url,
+                    player_rank,
+                    player_score,
                     account_id,
                 ),
             )

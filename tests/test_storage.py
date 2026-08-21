@@ -29,6 +29,29 @@ def _paipu_metadata(metadata: LogMetadata, koromo_account_id: int) -> LogMetadat
     )
 
 
+def _review_with_final_result(*, player_id: int = 0) -> ReviewDocument:
+    return ReviewDocument.from_json(
+        {
+            "player_id": player_id,
+            "mjai_log": [
+                {"type": "start_game"},
+                {"type": "start_kyoku", "scores": [13100, 31000, 1800, 54100]},
+                {"type": "reach_accepted", "actor": 3},
+                {"type": "hora", "deltas": [-3000, -6000, -3000, 13000]},
+                {"type": "end_kyoku"},
+                {"type": "end_game"},
+            ],
+            "review": {
+                "model_tag": "4.1b",
+                "kyokus": [],
+                "total_reviewed": 0,
+                "total_matches": 0,
+            },
+        },
+        player_id=player_id,
+    )
+
+
 def test_review_feedback_and_observations_are_local_without_account(
     tmp_path: Path,
 ) -> None:
@@ -518,7 +541,7 @@ def test_schema_v5_adds_separate_koromo_account_id(tmp_path: Path) -> None:
     assert identity["majsoul_uid"] == 12_345_678
     assert identity["koromo_account_id"] is None
     with repository._connect() as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 7
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 8
         indexes = {
             row["name"]
             for row in connection.execute("PRAGMA index_list(majsoul_accounts)")
@@ -565,7 +588,67 @@ def test_schema_v6_adds_profile_surface_tracking(tmp_path: Path) -> None:
     assert item["last_surfaced_at"] is None
     assert item["surfaced_count"] == 0
     with repository._connect() as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 7
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 8
+
+
+def test_schema_v7_backfills_review_rank_and_score(tmp_path: Path) -> None:
+    database_path = tmp_path / "schema-v7.sqlite3"
+    review = _review_with_final_result(player_id=0)
+    with sqlite3.connect(database_path) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE local_profile (
+                id INTEGER PRIMARY KEY,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE majsoul_accounts (
+                account_id INTEGER PRIMARY KEY,
+                koromo_account_id INTEGER,
+                local_profile_id INTEGER NOT NULL,
+                nickname TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE reviews (
+                id TEXT PRIMARY KEY,
+                source_path TEXT NOT NULL,
+                source_sha256 TEXT NOT NULL,
+                player_id INTEGER NOT NULL,
+                player_name TEXT NOT NULL,
+                rule_display TEXT NOT NULL,
+                model_tag TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                report_json TEXT NOT NULL,
+                report_json_url TEXT,
+                account_id INTEGER
+            );
+            PRAGMA user_version = 7;
+            """
+        )
+        timestamp = "2026-01-01T00:00:00+00:00"
+        connection.execute(
+            "INSERT INTO local_profile VALUES (1, ?, ?)",
+            (timestamp, timestamp),
+        )
+        connection.execute(
+            """
+            INSERT INTO reviews VALUES (
+                'old-review', 'https://game.maj-soul.com/1/?paipu=old-game',
+                'hash', 0, 'LocalPlayer', '四麻南', '4.1b', ?, ?, NULL, NULL
+            )
+            """,
+            (timestamp, json.dumps(review.raw)),
+        )
+
+    repository = ReviewRepository(database_path)
+
+    with repository._connect() as connection:
+        row = connection.execute(
+            "SELECT player_rank, player_score FROM reviews WHERE id = 'old-review'"
+        ).fetchone()
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 8
+    assert dict(row) == {"player_rank": 3, "player_score": 10100}
 
 
 def test_multiple_legacy_players_are_not_silently_merged(tmp_path: Path) -> None:

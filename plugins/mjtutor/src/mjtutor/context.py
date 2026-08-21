@@ -68,6 +68,51 @@ def normalize_tile(tile: str) -> str:
     return tile
 
 
+def reconstruct_final_result(
+    mjai_log: Any,
+    *,
+    player_id: int,
+) -> dict[str, Any] | None:
+    if not _is_player_id(player_id) or not isinstance(mjai_log, list):
+        return None
+
+    scores: list[int] | None = None
+    reached_end = False
+    for event in mjai_log:
+        if not isinstance(event, dict):
+            continue
+        event_type = event.get("type")
+        if event_type == "start_kyoku":
+            start_scores = _four_ints(event.get("scores"))
+            if start_scores is not None:
+                scores = start_scores
+            continue
+        if scores is None:
+            continue
+        if event_type == "reach_accepted" and _is_player_id(event.get("actor")):
+            scores[event["actor"]] -= 1000
+        elif event_type in {"hora", "ryukyoku"}:
+            deltas = _four_ints(event.get("deltas"))
+            if deltas is not None:
+                scores = [
+                    score + delta for score, delta in zip(scores, deltas, strict=True)
+                ]
+        elif event_type == "end_game":
+            reached_end = True
+
+    if scores is None or not reached_end:
+        return None
+    rank_order = sorted(
+        range(4),
+        key=lambda seat: (scores[seat], -seat),
+        reverse=True,
+    )
+    return {
+        "player_rank": rank_order.index(player_id) + 1,
+        "player_score": scores[player_id],
+    }
+
+
 @dataclass
 class _RoundState:
     bakaze: str
@@ -436,6 +481,14 @@ def _is_player_id(value: Any) -> bool:
 
 def _is_four_item_list(value: Any) -> bool:
     return isinstance(value, list) and len(value) == 4
+
+
+def _four_ints(value: Any) -> list[int] | None:
+    if not _is_four_item_list(value) or not all(
+        isinstance(item, int) and not isinstance(item, bool) for item in value
+    ):
+        return None
+    return list(value)
 
 
 def _unavailable_for_all(
